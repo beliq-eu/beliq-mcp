@@ -1,9 +1,9 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { BeliqApiError, type DocumentInput } from '@beliq/sdk'
+import { BeliqApiError, type DocumentInput, type Invoice } from '@beliq/sdk'
 import type { ServerDeps } from '../deps.js'
-import type { ValidateInput } from '../schema.js'
-import { summarizeValidation } from '../summary.js'
+import type { ConvertInput, GenerateInput, ParseInput, ValidateInput } from '../schema.js'
+import { summarizeConvert, summarizeGenerate, summarizeParse, summarizeValidation } from '../summary.js'
 
 function errorResult(message: string): CallToolResult {
   return { content: [{ type: 'text', text: message }], isError: true }
@@ -16,12 +16,15 @@ function nonEmpty(value: unknown): value is string {
 /** A bad tool input that should come back as a normal (non-fatal) tool error. */
 class BeliqInputError extends Error {}
 
+/** Convert targets that produce a PDF rather than an inline XML document. */
+const PDF_CONVERT_TARGETS = new Set(['facturx', 'zugferd'])
+
 /**
- * Resolve the tool input to the bytes/text the SDK validates. Exactly one of
- * document (inline XML) or documentPath (a file on disk) must be set; a file is
- * read as raw bytes so the SDK can sniff XML vs an embedded-XML PDF.
+ * Resolve a document-carrying input to the bytes/text the SDK reads. Exactly
+ * one of document (inline XML) or documentPath (a file on disk) must be set; a
+ * file is read as raw bytes so the SDK can sniff XML vs an embedded-XML PDF.
  */
-async function resolveDocument(input: ValidateInput): Promise<DocumentInput> {
+async function resolveDocument(input: { document?: string; documentPath?: string }): Promise<DocumentInput> {
   const hasDoc = nonEmpty(input.document)
   const hasPath = nonEmpty(input.documentPath)
   if (hasDoc === hasPath) {
@@ -114,5 +117,190 @@ export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult>
       return reply({ ok: false, status: err.status, message })
     }
     throw err
+  }
+}
+
+/**
+ * Parse one document into a structured EN 16931 invoice and shape the MCP
+ * result: a one-line summary in the text content plus the full invoice in
+ * structuredContent. Input and API errors come back as isError so the model can
+ * self-correct; only unexpected faults throw.
+ */
+export async function runParse(input: ParseInput, deps: ServerDeps): Promise<CallToolResult> {
+  let document: DocumentInput
+  try {
+    document = await resolveDocument(input)
+  } catch (err) {
+    if (err instanceof BeliqInputError) return errorResult(err.message)
+    return errorResult(`Could not read the document: ${(err as Error).message}`)
+  }
+
+  try {
+    const result = await deps.client.parse(document, { format: input.format })
+    return {
+      content: [{ type: 'text', text: summarizeParse(result) }],
+      structuredContent: {
+        format: result.format,
+        profileDetected: result.profileDetected,
+        invoice: result.invoice,
+      },
+    }
+  } catch (err) {
+    if (err instanceof BeliqApiError) {
+      const code = err.code ? ` (${err.code})` : ''
+      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
+    }
+    throw err
+  }
+}
+
+/**
+ * Generate a compliant document from an EN 16931 invoice. XML comes back inline
+ * in the text content; a PDF (or an XML with outputPath set) is written to disk
+ * and reported by path. verify defaults to true so the tool fails closed rather
+ * than hand back a non-compliant document. Input and API errors come back as
+ * isError so the model can self-correct.
+ */
+export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promise<CallToolResult> {
+  const output = input.output ?? 'xml'
+  const outputPath = nonEmpty(input.outputPath) ? input.outputPath.trim() : undefined
+  if (output === 'pdf' && !outputPath) {
+    return errorResult('A pdf output needs outputPath: the file path to write the generated PDF to.')
+  }
+
+  let result
+  try {
+    result = await deps.client.generate({
+      standard: input.standard,
+      invoice: input.invoice as unknown as Invoice,
+      output,
+      facturxProfile: input.facturxProfile,
+      verify: input.verify ?? true,
+    })
+  } catch (err) {
+    if (err instanceof BeliqApiError) {
+      const code = err.code ? ` (${err.code})` : ''
+      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
+    }
+    throw err
+  }
+
+  let bytesWritten: number | undefined
+  if (outputPath) {
+    try {
+      await writeFile(outputPath, result.bytes, { flag: 'wx' })
+      bytesWritten = result.bytes.byteLength
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+        return errorResult(`A file already exists at ${outputPath}. Choose a path that does not exist.`)
+      }
+      return errorResult(`Could not write the document: ${(err as Error).message}`)
+    }
+  }
+
+  const text = summarizeGenerate({
+    standard: input.standard,
+    output,
+    schematronVersion: result.meta.schematronVersion,
+    outputPath,
+    bytesWritten,
+    xml: output === 'xml' ? result.xml : undefined,
+  })
+
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      output,
+      contentType: result.contentType,
+      schematronVersion: result.meta.schematronVersion,
+      pdfKind: result.meta.pdfKind,
+      outputPath,
+      bytesWritten,
+      xml: output === 'xml' ? result.xml : undefined,
+    },
+  }
+}
+
+/**
+ * Convert a document from one EN 16931 format to another. An XML target comes
+ * back inline; a PDF target (facturx / zugferd) is written to disk and reported
+ * by path. Any elements the conversion could not carry across are surfaced, so
+ * a lossy conversion is visible. Input and API errors come back as isError so
+ * the model can self-correct.
+ */
+export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise<CallToolResult> {
+  let document: DocumentInput
+  try {
+    document = await resolveDocument(input)
+  } catch (err) {
+    if (err instanceof BeliqInputError) return errorResult(err.message)
+    return errorResult(`Could not read the document: ${(err as Error).message}`)
+  }
+
+  const output: 'xml' | 'pdf' = PDF_CONVERT_TARGETS.has(input.targetFormat) ? 'pdf' : 'xml'
+  const outputPath = nonEmpty(input.outputPath) ? input.outputPath.trim() : undefined
+  if (output === 'pdf' && !outputPath) {
+    return errorResult(
+      `Converting to ${input.targetFormat} produces a PDF and needs outputPath: the file path to write it to.`
+    )
+  }
+
+  let result
+  try {
+    result = await deps.client.convert(document, {
+      targetFormat: input.targetFormat,
+      sourceFormat: input.sourceFormat,
+      targetProfile: input.targetProfile,
+      dropFranceCtcOverlay: input.dropFranceCtcOverlay,
+    })
+  } catch (err) {
+    if (err instanceof BeliqApiError) {
+      const code = err.code ? ` (${err.code})` : ''
+      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
+    }
+    throw err
+  }
+
+  const xml = output === 'xml' ? new TextDecoder().decode(result.bytes) : undefined
+  const targetFormat = result.meta.targetFormat ?? input.targetFormat
+
+  let bytesWritten: number | undefined
+  if (outputPath) {
+    try {
+      await writeFile(outputPath, result.bytes, { flag: 'wx' })
+      bytesWritten = result.bytes.byteLength
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+        return errorResult(`A file already exists at ${outputPath}. Choose a path that does not exist.`)
+      }
+      return errorResult(`Could not write the document: ${(err as Error).message}`)
+    }
+  }
+
+  const text = summarizeConvert({
+    output,
+    sourceFormat: result.meta.sourceFormat,
+    targetFormat,
+    profileDetected: result.meta.profileDetected,
+    lostElementsCount: result.meta.lostElementsCount,
+    outputPath,
+    bytesWritten,
+    xml,
+  })
+
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      output,
+      contentType: result.contentType,
+      sourceFormat: result.meta.sourceFormat,
+      targetFormat,
+      profileDetected: result.meta.profileDetected,
+      lostElementsCount: result.meta.lostElementsCount,
+      lostElements: result.meta.lostElements,
+      outputPath,
+      bytesWritten,
+      xml,
+    },
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "beliq-mcp",
-  "version": "0.1.1",
-  "description": "beliq MCP server: validate EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) against authority-pinned, drift-checked rules, for MCP clients.",
+  "version": "0.2.0",
+  "description": "beliq MCP server: validate, parse, generate, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) against authority-pinned, drift-checked rules, for MCP clients.",
   "license": "MIT",
   "type": "module",
   "author": {

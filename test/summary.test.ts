@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { summarizeValidation } from '../src/summary.js'
-import type { ValidationResult } from '@beliq/sdk'
+import { summarizeConvert, summarizeGenerate, summarizeParse, summarizeValidation } from '../src/summary.js'
+import type { ParseResult, ValidationResult } from '@beliq/sdk'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 function fixture(name: string): ValidationResult {
@@ -60,5 +60,112 @@ describe('summarizeValidation', () => {
     } as unknown as ValidationResult
     const text = summarizeValidation(result)
     expect(text).toBe('Validation: VALID. Format ubl. 0 errors, 0 warnings.')
+  })
+})
+
+describe('summarizeParse', () => {
+  it('reports the format, profile, invoice number, line count, and gross total', () => {
+    const result = fixture('parse-result.json') as unknown as ParseResult
+    const text = summarizeParse(result)
+    expect(text).toBe('Parsed a cii (profile xrechnung) document: invoice INV-2026-001, 1 line, gross 1190 EUR.')
+  })
+
+  it('omits the profile clause when absent', () => {
+    const result = {
+      format: 'ubl',
+      invoice: {
+        number: 'X-1',
+        currencyCode: 'EUR',
+        lines: [{}, {}],
+        totalGrossAmount: 240,
+      },
+    } as unknown as ParseResult
+    expect(summarizeParse(result)).toBe('Parsed a ubl document: invoice X-1, 2 lines, gross 240 EUR.')
+  })
+})
+
+describe('summarizeGenerate', () => {
+  it('appends the full document for an XML result', () => {
+    const xml = '<rsm:CrossIndustryInvoice>doc</rsm:CrossIndustryInvoice>'
+    const text = summarizeGenerate({
+      standard: 'xrechnung',
+      output: 'xml',
+      schematronVersion: 'XRechnung-2.5.0',
+      xml,
+    })
+    expect(text).toContain('Generated a xrechnung xml document, checked against Schematron XRechnung-2.5.0.')
+    expect(text).toContain(xml)
+  })
+
+  it('reports the written path and byte count for a PDF result', () => {
+    const text = summarizeGenerate({
+      standard: 'facturx',
+      output: 'pdf',
+      schematronVersion: 'Factur-X-1.0',
+      outputPath: '/tmp/invoice.pdf',
+      bytesWritten: 12345,
+    })
+    expect(text).toBe(
+      'Generated a facturx pdf document, checked against Schematron Factur-X-1.0. Written to /tmp/invoice.pdf (12345 bytes).'
+    )
+  })
+
+  it('notes when an XML result is also written to a path', () => {
+    const text = summarizeGenerate({
+      standard: 'xrechnung',
+      output: 'xml',
+      outputPath: '/tmp/out.xml',
+      bytesWritten: 20,
+      xml: '<x/>',
+    })
+    expect(text).toContain('Written to /tmp/out.xml.')
+    expect(text).toContain('<x/>')
+  })
+})
+
+describe('summarizeConvert', () => {
+  it('reports source, target, and lost elements and appends the XML', () => {
+    const xml = '<Invoice>converted</Invoice>'
+    const text = summarizeConvert({
+      output: 'xml',
+      sourceFormat: 'cii',
+      targetFormat: 'ubl',
+      lostElementsCount: 2,
+      xml,
+    })
+    expect(text).toContain('Converted cii to ubl.')
+    expect(text).toContain('2 elements could not be carried across.')
+    expect(text).toContain(xml)
+  })
+
+  it('reports the written path and byte count for a PDF target', () => {
+    const text = summarizeConvert({
+      output: 'pdf',
+      sourceFormat: 'ubl',
+      targetFormat: 'facturx',
+      profileDetected: 'en16931',
+      outputPath: '/tmp/out.pdf',
+      bytesWritten: 2048,
+    })
+    expect(text).toBe(
+      'Converted ubl to facturx (profile en16931). Written to /tmp/out.pdf (2048 bytes).'
+    )
+  })
+
+  it('omits the lost-elements clause when nothing was lost', () => {
+    const text = summarizeConvert({
+      output: 'xml',
+      sourceFormat: 'cii',
+      targetFormat: 'ubl',
+      lostElementsCount: 0,
+      xml: '<x/>',
+    })
+    expect(text).toContain('Converted cii to ubl.')
+    expect(text).not.toContain('carried across')
+  })
+
+  it('omits the source clause when the source format is unknown', () => {
+    const text = summarizeConvert({ output: 'xml', targetFormat: 'ubl', xml: '<x/>' })
+    expect(text).toContain('Converted to ubl.')
   })
 })

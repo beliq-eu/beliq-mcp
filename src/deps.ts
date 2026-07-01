@@ -6,7 +6,7 @@ import type { Beliq } from '@beliq/sdk'
  * fixtures, so a handler test exercises real input-mapping and result-shaping
  * rather than a mock returning what it was told.
  */
-export type BeliqClient = Pick<Beliq, 'validate' | 'me'>
+export type BeliqClient = Pick<Beliq, 'validate' | 'me' | 'parse' | 'generate' | 'convert'>
 
 export interface ServerDeps {
   client: BeliqClient

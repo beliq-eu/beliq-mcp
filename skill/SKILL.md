@@ -15,7 +15,7 @@ The user has an e-invoice (or a path to one) and wants to know if it is complian
 - UBL or CII **XML** (XRechnung, Peppol BIS, and other EN 16931 syntaxes).
 - A **Factur-X / ZUGFeRD PDF** (a PDF with embedded invoice XML); pass it by file path.
 
-If the user wants to *generate*, *parse*, or *convert* an invoice rather than validate one, this skill does not cover that; those are separate beliq API operations.
+This skill focuses on validation. To parse a document into a structured invoice, generate a compliant one, or convert between formats, the same beliq MCP server exposes `beliq_parse_einvoice`, `beliq_generate_einvoice`, and `beliq_convert_einvoice`.
 
 ## Prerequisite: the MCP server
 
