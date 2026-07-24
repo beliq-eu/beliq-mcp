@@ -173,6 +173,19 @@ export const generateOutputShape = {
   outputPath: z.string().optional(),
   bytesWritten: z.number().optional(),
   xml: z.string().optional(),
+  // The verify-it-yourself seal: sha256 of the returned document, the combined
+  // ruleset fingerprint it was checked against, and the validation verdict.
+  sha256: z.string().optional(),
+  rulesetSha256: z.string().optional(),
+  livemode: z.boolean().optional(),
+  validationResult: z
+    .object({
+      valid: z.boolean(),
+      schematronVersion: z.string().optional(),
+      errors: z.array(issueShape),
+      warnings: z.array(issueShape),
+    })
+    .optional(),
 }
 
 // ── Convert ────────────────────────────────────────────────────────────────

@@ -176,6 +176,9 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       output,
       facturxProfile: input.facturxProfile,
       verify: input.verify ?? true,
+      // Always seal so the tool can hand back the document sha256 and the
+      // validation verdict for the model to cite.
+      seal: true,
     })
   } catch (err) {
     if (err instanceof BeliqApiError) {
@@ -198,6 +201,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     }
   }
 
+  const vr = result.validationResult
   const text = summarizeGenerate({
     standard: input.standard,
     output,
@@ -205,6 +209,8 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     outputPath,
     bytesWritten,
     xml: output === 'xml' ? result.xml : undefined,
+    sha256: result.sha256,
+    valid: vr?.valid,
   })
 
   return {
@@ -217,6 +223,17 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       outputPath,
       bytesWritten,
       xml: output === 'xml' ? result.xml : undefined,
+      sha256: result.sha256,
+      rulesetSha256: result.meta.rulesetSha256,
+      livemode: result.meta.livemode,
+      validationResult: vr
+        ? {
+            valid: vr.valid,
+            schematronVersion: vr.schematronVersion,
+            errors: vr.errors ?? [],
+            warnings: vr.warnings ?? [],
+          }
+        : undefined,
     },
   }
 }
