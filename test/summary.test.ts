@@ -121,6 +121,18 @@ describe('summarizeGenerate', () => {
     expect(text).toContain('Written to /tmp/out.xml.')
     expect(text).toContain('<x/>')
   })
+
+  it('states the sha256 and verdict when the seal is present', () => {
+    const text = summarizeGenerate({
+      standard: 'xrechnung',
+      output: 'xml',
+      schematronVersion: 'XRechnung-2.5.0',
+      sha256: 'deadbeef',
+      valid: true,
+      xml: '<x/>',
+    })
+    expect(text).toContain('Document sha256 deadbeef; validation passed.')
+  })
 })
 
 describe('summarizeConvert', () => {

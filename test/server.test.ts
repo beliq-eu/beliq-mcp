@@ -44,6 +44,13 @@ interface Recorder {
 
 const GENERATED_XML = '<rsm:CrossIndustryInvoice>generated</rsm:CrossIndustryInvoice>'
 const CONVERTED_XML = '<Invoice>converted</Invoice>'
+const GENERATED_VALIDATION = {
+  valid: true,
+  format: 'cii',
+  errors: [],
+  warnings: [],
+  schematronVersion: 'XRechnung-2.5.0',
+} as unknown as ValidationResult
 
 function recordingClient(): Recorder {
   const validateCalls: DocCall[] = []
@@ -65,14 +72,18 @@ function recordingClient(): Recorder {
         return {
           contentType: 'application/pdf',
           bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
-          meta: { schematronVersion: 'XRechnung-2.5.0', pdfKind: 'hybrid' },
+          sha256: 'pdf-sha256',
+          validationResult: GENERATED_VALIDATION,
+          meta: { schematronVersion: 'XRechnung-2.5.0', pdfKind: 'hybrid', rulesetSha256: 'ruleset-1', livemode: false },
         }
       }
       return {
         contentType: 'application/xml',
         bytes: Buffer.from(GENERATED_XML, 'utf8'),
         xml: GENERATED_XML,
-        meta: { schematronVersion: 'XRechnung-2.5.0' },
+        sha256: 'xml-sha256',
+        validationResult: GENERATED_VALIDATION,
+        meta: { schematronVersion: 'XRechnung-2.5.0', rulesetSha256: 'ruleset-1', livemode: false },
       }
     },
     async convert(document, options): Promise<ConvertResult> {
@@ -263,13 +274,20 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(generateCalls[0].standard).toBe('xrechnung')
     expect(generateCalls[0].output).toBe('xml')
     expect(generateCalls[0].verify).toBe(true)
+    // Always sealed so the seal (sha256 + verdict) is available to cite.
+    expect(generateCalls[0].seal).toBe(true)
     expect(generateCalls[0].invoice.number).toBe('INV-2026-001')
 
     const sc = res.structuredContent as Record<string, unknown>
     expect(sc.output).toBe('xml')
     expect(sc.xml).toBe(GENERATED_XML)
     expect(sc.outputPath).toBeUndefined()
+    expect(sc.sha256).toBe('xml-sha256')
+    expect(sc.rulesetSha256).toBe('ruleset-1')
+    expect(sc.livemode).toBe(false)
+    expect((sc.validationResult as { valid: boolean }).valid).toBe(true)
     expect(textOf(res)).toContain(GENERATED_XML)
+    expect(textOf(res)).toContain('sha256 xml-sha256')
     await c.close()
   })
 

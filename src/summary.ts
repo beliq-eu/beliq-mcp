@@ -75,16 +75,22 @@ interface GenerateSummary {
   outputPath?: string
   bytesWritten?: number
   xml?: string
+  sha256?: string
+  valid?: boolean
 }
 
 /**
  * A human-readable summary of a generate. For an XML result the document is
  * appended in full so a client without structured output still receives it; a
- * PDF is reported by the path it was written to.
+ * PDF is reported by the path it was written to. When the seal is present the
+ * document sha256 and validation verdict are stated so the model can cite them.
  */
 export function summarizeGenerate(g: GenerateSummary): string {
   const checked = g.schematronVersion ? `, checked against Schematron ${g.schematronVersion}` : ''
-  const header = `Generated a ${g.standard} ${g.output} document${checked}.`
+  const seal = g.sha256
+    ? ` Document sha256 ${g.sha256}${g.valid === undefined ? '' : `; validation ${g.valid ? 'passed' : 'failed'}`}.`
+    : ''
+  const header = `Generated a ${g.standard} ${g.output} document${checked}.${seal}`
 
   if (g.output === 'pdf') {
     const where = g.outputPath ? ` Written to ${g.outputPath} (${plural(g.bytesWritten ?? 0, 'byte')}).` : ''

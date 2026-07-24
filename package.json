@@ -1,6 +1,6 @@
 {
   "name": "beliq-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "beliq MCP server: validate, parse, generate, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) against authority-pinned, drift-checked rules, for MCP clients.",
   "license": "MIT",
   "type": "module",
@@ -56,7 +56,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@beliq/sdk": "^0.1.0",
+    "@beliq/sdk": "^0.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.4.3"
   },

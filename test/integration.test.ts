@@ -71,6 +71,9 @@ live('beliq-mcp live (integration)', () => {
     expect(gen.isError).toBeFalsy()
     const gsc = gen.structuredContent as Record<string, unknown>
     expect(typeof gsc.xml).toBe('string')
+    // The generate tool always seals: the document hash and verdict come back.
+    expect(typeof gsc.sha256).toBe('string')
+    expect(typeof (gsc.validationResult as { valid: unknown }).valid).toBe('boolean')
 
     const conv = await runConvert({ document: gsc.xml as string, targetFormat: 'ubl', sourceFormat: 'auto' }, deps)
     expect(conv.isError).toBeFalsy()
