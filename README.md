@@ -83,7 +83,7 @@ A PDF (Factur-X / ZUGFeRD) must be passed by `documentPath` for validate, parse,
 
 ## Development
 
-This server depends on the published [`@beliq/sdk`](https://www.npmjs.com/package/@beliq/sdk), which carries the request, transport, and result-shaping logic. No lockfile is committed; `@beliq/sdk` is resolved fresh at install time.
+This server depends on the published [`@beliq/sdk`](https://www.npmjs.com/package/@beliq/sdk), which carries the request, transport, and result-shaping logic. `package-lock.json` is committed, and CI and the release build install from it with `npm ci`.
 
 - `npm install`
 - `npm run build` - compile to `dist/`
