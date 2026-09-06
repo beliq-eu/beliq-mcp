@@ -47,6 +47,9 @@ live('beliq-mcp live (integration)', () => {
       },
       buyer: {
         name: 'Buyer GmbH',
+        // BT-49. XRechnung rejects a party it cannot address (400), and the
+        // buyer has no vatId to fall back to.
+        email: 'ap@buyer.example',
         address: { street: 'Marktweg 2', city: 'Munich', postalCode: '80331', countryCode: 'DE' },
       },
       lines: [
