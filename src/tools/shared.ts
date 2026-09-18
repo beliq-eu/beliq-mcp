@@ -175,6 +175,10 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       invoice: input.invoice as unknown as Invoice,
       output,
       facturxProfile: input.facturxProfile,
+      // XRechnung and Peppol BIS have no hybrid PDF, and the API refuses PDF
+      // for them unless the request names a visual to render. Factur-X and
+      // ZUGFeRD render theirs either way, so this is inert for them.
+      template: output === 'pdf' ? 'standard' : undefined,
       verify: input.verify ?? true,
       // Always seal so the tool can hand back the document sha256 and the
       // validation verdict for the model to cite.

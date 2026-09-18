@@ -334,6 +334,31 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
+  // PDF output on an XML-only standard is a hard 400 unless the request names a
+  // visual to render, and the tool exposes no other way to ask for one.
+  it('asks for the default visual on PDF output and for none on XML', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: {
+        standard: 'xrechnung',
+        output: 'pdf',
+        outputPath: path.join(tmpDir, 'visual.pdf'),
+        invoice: MINIMAL_INVOICE,
+      },
+    })
+    await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', invoice: MINIMAL_INVOICE },
+    })
+
+    expect(generateCalls).toHaveLength(2)
+    expect(generateCalls[0].template).toBe('standard')
+    expect(generateCalls[1].template).toBeUndefined()
+    await c.close()
+  })
+
   it('rejects a PDF generate that omits outputPath, before calling the API', async () => {
     const { client, generateCalls } = recordingClient()
     const c = await connect(client)
