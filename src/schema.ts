@@ -149,7 +149,9 @@ export const generateInputShape = {
   facturxProfile: z
     .enum(LIVE_PROFILES)
     .optional()
-    .describe('Profile for a Factur-X / ZUGFeRD PDF; applies only when standard is facturx or zugferd.'),
+    .describe(
+      'Profile for a Factur-X / ZUGFeRD document; ignored for xrechnung and peppol-bis. extended-ctc-fr is Factur-X only: zugferd accepts basicwl, en16931 and extended.'
+    ),
   verify: z
     .boolean()
     .optional()

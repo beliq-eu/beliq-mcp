@@ -1,6 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { BeliqApiError, type DocumentInput, type Invoice } from '@beliq/sdk'
+import {
+  BeliqApiError,
+  isProfileAllowedForStandard,
+  profilesForStandard,
+  type DocumentInput,
+  type Invoice,
+} from '@beliq/sdk'
 import type { ServerDeps } from '../deps.js'
 import type { ConvertInput, GenerateInput, ParseInput, ValidateInput } from '../schema.js'
 import { summarizeConvert, summarizeGenerate, summarizeParse, summarizeValidation } from '../summary.js'
@@ -166,6 +172,17 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
   const outputPath = nonEmpty(input.outputPath) ? input.outputPath.trim() : undefined
   if (output === 'pdf' && !outputPath) {
     return errorResult('A pdf output needs outputPath: the file path to write the generated PDF to.')
+  }
+  // The SDK drops facturxProfile outside the Factur-X / ZUGFeRD family. Inside
+  // it the pair is still pinned: extended-ctc-fr is Factur-X only, and the API
+  // answers it on zugferd with 422 PROFILE_STANDARD_MISMATCH. Name the legal
+  // values rather than spend a call on a pair that cannot succeed.
+  const hybrid = input.standard === 'facturx' || input.standard === 'zugferd'
+  if (hybrid && input.facturxProfile && !isProfileAllowedForStandard(input.standard, input.facturxProfile)) {
+    return errorResult(
+      `facturxProfile '${input.facturxProfile}' is not available for ${input.standard}. ` +
+        `Use one of: ${profilesForStandard(input.standard).join(', ')}.`
+    )
   }
 
   let result
