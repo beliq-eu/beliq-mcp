@@ -144,12 +144,14 @@ export const generateInputShape = {
     .enum(['xml', 'pdf'])
     .optional()
     .describe(
-      "'xml' (default) returns the document inline. 'pdf' produces a Factur-X / ZUGFeRD hybrid PDF and needs outputPath to write it to."
+      "'xml' (default) returns the document inline. 'pdf' needs outputPath to write it to: for facturx and zugferd it is a hybrid PDF/A-3 with the XML embedded; xrechnung and peppol-bis have no hybrid form, so it is a visualization with no XML inside it, and their legal document stays the XML."
     ),
   facturxProfile: z
     .enum(LIVE_PROFILES)
     .optional()
-    .describe('Profile for a Factur-X / ZUGFeRD PDF; applies only when standard is facturx or zugferd.'),
+    .describe(
+      'Profile for a Factur-X / ZUGFeRD document; ignored for xrechnung and peppol-bis. extended-ctc-fr is Factur-X only: zugferd accepts basicwl, en16931 and extended.'
+    ),
   verify: z
     .boolean()
     .optional()

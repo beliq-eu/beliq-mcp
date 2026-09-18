@@ -334,6 +334,83 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
+  // PDF output on an XML-only standard is a hard 400 unless the request names a
+  // visual to render, and the tool exposes no other way to ask for one.
+  it('asks for the default visual on PDF output and for none on XML', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: {
+        standard: 'xrechnung',
+        output: 'pdf',
+        outputPath: path.join(tmpDir, 'visual.pdf'),
+        invoice: MINIMAL_INVOICE,
+      },
+    })
+    await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', invoice: MINIMAL_INVOICE },
+    })
+
+    expect(generateCalls).toHaveLength(2)
+    expect(generateCalls[0].template).toBe('standard')
+    expect(generateCalls[1].template).toBeUndefined()
+    await c.close()
+  })
+
+  // The pairing check covers the hybrid family only. xrechnung's own table holds
+  // just 'xrechnung', so an unguarded check would refuse a call the SDK makes
+  // fine by dropping the profile, as the field description promises.
+  it('does not refuse facturxProfile outside the Factur-X / ZUGFeRD family', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', facturxProfile: 'en16931', invoice: MINIMAL_INVOICE },
+    })
+    expect(res.isError).toBeFalsy()
+    expect(generateCalls).toHaveLength(1)
+    await c.close()
+  })
+
+  it('refuses extended-ctc-fr on zugferd before calling the API, naming the legal profiles', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: {
+        standard: 'zugferd',
+        output: 'pdf',
+        outputPath: path.join(tmpDir, 'ctc.pdf'),
+        facturxProfile: 'extended-ctc-fr',
+        invoice: MINIMAL_INVOICE,
+      },
+    })
+    expect(res.isError).toBe(true)
+    expect(textOf(res)).toContain('basicwl, en16931, extended')
+    expect(generateCalls).toHaveLength(0)
+    await c.close()
+  })
+
+  it('passes extended-ctc-fr through on facturx', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: {
+        standard: 'facturx',
+        output: 'pdf',
+        outputPath: path.join(tmpDir, 'ctc-fx.pdf'),
+        facturxProfile: 'extended-ctc-fr',
+        invoice: MINIMAL_INVOICE,
+      },
+    })
+    expect(res.isError).toBeFalsy()
+    expect(generateCalls[0].facturxProfile).toBe('extended-ctc-fr')
+    await c.close()
+  })
+
   it('rejects a PDF generate that omits outputPath, before calling the API', async () => {
     const { client, generateCalls } = recordingClient()
     const c = await connect(client)
