@@ -244,14 +244,10 @@ export const convertOutputShape = {
   xml: z.string().optional(),
 }
 
-const validateInputSchema = z.object(validateInputShape)
-export type ValidateInput = z.infer<typeof validateInputSchema>
+export type ValidateInput = z.infer<z.ZodObject<typeof validateInputShape>>
 
-const parseInputSchema = z.object(parseInputShape)
-export type ParseInput = z.infer<typeof parseInputSchema>
+export type ParseInput = z.infer<z.ZodObject<typeof parseInputShape>>
 
-const generateInputSchema = z.object(generateInputShape)
-export type GenerateInput = z.infer<typeof generateInputSchema>
+export type GenerateInput = z.infer<z.ZodObject<typeof generateInputShape>>
 
-const convertInputSchema = z.object(convertInputShape)
-export type ConvertInput = z.infer<typeof convertInputSchema>
+export type ConvertInput = z.infer<z.ZodObject<typeof convertInputShape>>
