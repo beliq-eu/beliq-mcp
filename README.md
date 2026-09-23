@@ -71,9 +71,26 @@ Add to `~/.cursor/mcp.json` (or a project `.cursor/mcp.json`) using the same `mc
 
 `beliq_parse_einvoice` returns the detected `format` and `profileDetected` plus the extracted `invoice` object (EN 16931 fields: number, dates, currency, seller, buyer, lines, totals, and any national extensions present).
 
-`beliq_generate_einvoice` returns the `output` kind (`xml` or `pdf`), the `contentType`, and the `schematronVersion` the document was checked against. An XML document is also returned inline as `xml`; a PDF (and an XML when you set `outputPath`) is written to disk, and the call reports `outputPath` and `bytesWritten`. It does not overwrite an existing file: pick a path that does not exist.
+`beliq_generate_einvoice` returns a short text summary (with the XML document appended for XML output) plus a structured result:
 
-`beliq_convert_einvoice` returns the `output` kind, the resolved `sourceFormat` and `targetFormat`, and `lostElementsCount`/`lostElements` for anything the conversion could not carry across. An XML target comes back inline as `xml`; a PDF target (facturx / zugferd) is written to `outputPath`. Like generate, it never overwrites an existing file.
+- `output` is `xml` or `pdf`, as requested, and `contentType` is the matching media type (`application/xml` or `application/pdf`).
+- `xml` is the generated document inline, present only for XML output.
+- `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. The call never overwrites an existing file, so pick a path that does not exist.
+- `pdfKind` is present only for PDF output: `hybrid` (a PDF/A-3 with the XML embedded, for facturx and zugferd) or `visualization` (rendered pages with no XML inside, for xrechnung and peppol-bis, whose legal document stays the XML).
+- `schematronVersion` is the ruleset (Schematron) revision the document was checked against.
+- `sha256` is the lowercase-hex SHA-256 of the returned document bytes, so `sha256sum` on the file at `outputPath` reproduces it.
+- `rulesetSha256` is one combined fingerprint of the rule artifacts the document was checked against, present when a ruleset ran.
+- `livemode` is true for a `blq_live_` key and false for a `blq_test_` sandbox key, whose output is [marked as a specimen](https://docs.beliq.eu/api-reference/test-mode/#sandbox-markers) and is not a production invoice.
+- `validationResult` is the verdict on the generated document: `valid`, the `schematronVersion` it ran, and `errors[]`/`warnings[]` in the same shape as validate returns. With the default `verify: true`, a document that fails validation comes back as a tool error instead of a result. With `verify: false` no ruleset runs: `valid` is false and `errors`/`warnings` are empty because nothing checked the document, not because it failed.
+
+`beliq_convert_einvoice` returns a short text summary (with the XML document appended for an XML target) plus a structured result:
+
+- `output` is `pdf` for a facturx or zugferd target and `xml` for the others, and `contentType` is the matching media type (`application/pdf` or `application/xml`).
+- `xml` is the converted document inline, present only for an XML target.
+- `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF target, and for an XML target when you set `outputPath`. Like generate, it never overwrites an existing file.
+- `sourceFormat` is the format the engine read, and `targetFormat` the format it produced (the `targetFormat` you asked for when the API does not name one).
+- `profileDetected` is the profile the engine recognised on the source document, when it recognised one.
+- `lostElementsCount` and `lostElements` count and name the source elements that had no equivalent in the target format; `0` means nothing was lost at the element level.
 
 A PDF (Factur-X / ZUGFeRD) must be passed by `documentPath` for validate, parse, and convert, not inlined as text.
 
