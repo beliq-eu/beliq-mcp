@@ -7,7 +7,7 @@ import {
   LIVE_PROFILES,
 } from '@beliq/sdk'
 
-// The tools expose the LIVE, authority-pinned public option sets (LPD-1),
+// The tools expose the LIVE, authority-pinned public option sets,
 // imported from the SDK so this stays one source of truth: callers pass a
 // syntax family or a live standard, never a provisional/withheld profile. The
 // engine can detect more; the public surface stays narrow.
