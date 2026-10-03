@@ -441,12 +441,25 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
-  it('rejects a generate for a provisional standard withheld from the public set', async () => {
+  it('generates for a national XSD standard, which the API accepts', async () => {
     const { client, generateCalls } = recordingClient()
     const c = await connect(client)
     const res = await c.callTool({
       name: 'beliq_generate_einvoice',
       arguments: { standard: 'fatturapa', invoice: MINIMAL_INVOICE },
+    })
+    expect(res.isError).toBeFalsy()
+    expect(generateCalls).toHaveLength(1)
+    expect(generateCalls[0]).toMatchObject({ standard: 'fatturapa' })
+    await c.close()
+  })
+
+  it('rejects a generate for a standard the API does not accept', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'sdi_messaggio', invoice: MINIMAL_INVOICE },
     })
     expect(res.isError).toBe(true)
     expect(generateCalls).toHaveLength(0)
@@ -544,7 +557,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
-  it('rejects a convert to a provisional target withheld from the public set', async () => {
+  it('rejects a convert to a target the API\'s convert enum does not carry', async () => {
     const { client, convertCalls } = recordingClient()
     const c = await connect(client)
     const res = await c.callTool({

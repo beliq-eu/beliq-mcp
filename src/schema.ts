@@ -7,10 +7,12 @@ import {
   LIVE_PROFILES,
 } from '@beliq/sdk'
 
-// The tools expose the LIVE, authority-pinned public option sets,
-// imported from the SDK so this stays one source of truth: callers pass a
-// syntax family or a live standard, never a provisional/withheld profile. The
-// engine can detect more; the public surface stays narrow.
+// The tools expose the SDK's LIVE_* option sets, imported rather than retyped
+// so this stays one source of truth. Each carries every value the API accepts
+// for its operation: generate offers all eight standards, the four national
+// XSD ones included, while convert offers fewer because the API's own convert
+// enums do. GET /v1/rulesets carries the badge saying how deep each format's
+// check goes.
 
 export const validateInputShape = {
   document: z
