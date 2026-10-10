@@ -8,6 +8,7 @@ import {
   type Invoice,
   type ValidationResult,
 } from '@beliq/sdk'
+import { sniffContentType, toBytes } from '@beliq/sdk/helpers'
 import type { ServerDeps } from '../deps.js'
 import type { ConvertInput, GenerateInput, ParseInput, ValidateInput } from '../schema.js'
 import { summarizeConvert, summarizeGenerate, summarizeParse, summarizeValidation } from '../summary.js'
@@ -25,11 +26,6 @@ class BeliqInputError extends Error {}
 
 /** The convert targets for which the API can hand a hybrid PDF source back as a PDF. */
 const HYBRID_CONVERT_TARGETS = new Set(['facturx', 'zugferd'])
-
-function isPdf(document: string | Uint8Array): boolean {
-  if (typeof document === 'string') return document.startsWith('%PDF-')
-  return new TextDecoder('latin1').decode(document.subarray(0, 5)) === '%PDF-'
-}
 
 /**
  * An API error as a tool error. A 422 from generate or convert carries the
@@ -270,7 +266,8 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
   }
 
   const outputPath = nonEmpty(input.outputPath) ? input.outputPath.trim() : undefined
-  if (isPdf(document) && HYBRID_CONVERT_TARGETS.has(input.targetFormat) && !outputPath) {
+  const pdfSource = sniffContentType(toBytes(document)) === 'application/pdf'
+  if (pdfSource && HYBRID_CONVERT_TARGETS.has(input.targetFormat) && !outputPath) {
     return errorResult(
       `A PDF source converted to ${input.targetFormat} can come back as a PDF and needs outputPath: the file path to write it to.`
     )

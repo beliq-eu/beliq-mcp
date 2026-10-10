@@ -173,7 +173,7 @@ export function summarizeConvert(c: ConvertSummary): string {
     c.lostElementsCount && c.lostElementsCount > 0
       ? ` The engine recorded ${plural(c.lostElementsCount, 'source element')} with no target equivalent.`
       : ''
-  const header = `Converted ${fromClause}to ${target}${profile}.${checked}${lost}`
+  const header = `Converted ${fromClause}to ${target}${profile}, returned as ${c.output === 'pdf' ? 'a PDF' : 'XML'}.${checked}${lost}`
 
   if (c.output === 'pdf') {
     const where = c.outputPath ? ` Written to ${c.outputPath} (${plural(c.bytesWritten ?? 0, 'byte')}).` : ''

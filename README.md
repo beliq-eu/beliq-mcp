@@ -107,7 +107,7 @@ The structured result carries every field of the API's validation result. Its sh
 - `livemode` is true for a `blq_live_` key and false for a `blq_test_` sandbox key.
 - `lostElementsCount` and `lostElements` count and name the source elements the engine recorded as having no target equivalent. A loss the engine does not detect is not counted, so `0` does not say that every field of the source arrived.
 
-A successful convert means the API validated the converted XML before returning it. It carries no verdict and no check depth. A converted document that fails comes back as a tool error that lists the failed rules.
+A successful convert means the API validated the converted XML before returning it. For a `facturx` or `zugferd` target at profile `en16931` that validation is the one for plain EN 16931 CII: no Factur-X profile schema is checked. It carries no verdict and no check depth. A converted document that fails comes back as a tool error that lists the failed rules.
 
 A PDF (Factur-X / ZUGFeRD) must be passed by `documentPath` for validate, parse, and convert, not inlined as text.
 

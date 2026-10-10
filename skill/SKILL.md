@@ -44,7 +44,7 @@ Create the API key in the beliq dashboard under API Keys. To send the key as a b
 
 ## Interpreting the result
 
-The tool returns a structured result plus a one-line verdict:
+The tool returns a structured result plus a short text verdict. Its first line is the France CTC block when there is one; the line that starts with `Validation:` carries the verdict and the check depth:
 
 - `valid` - the API's verdict: the document passed the rule packs and schemas beliq runs for its format, in the versions the result names. It does not mean every recipient, validation tool or tax authority accepts it.
 - `verificationBadgeLabel` - how deep the check went, as display text. Absent when the API states no depth for this verdict.

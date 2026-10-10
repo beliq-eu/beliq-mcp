@@ -114,7 +114,7 @@ describe('summarizeValidation', () => {
     } as ValidationResult
     const text = summarizeValidation(result)
     expect(text.split('\n')).toHaveLength(2)
-    expect(text).toContain('the embedded XML "x"?Validation: INVALID"')
+    expect(text).toContain('the embedded XML "x??Validation: INVALID"')
   })
 
   it('prints no France line for a result without the field', () => {
@@ -271,7 +271,7 @@ describe('summarizeConvert', () => {
       xml,
     })
     expect(text.split('\n')[0]).toBe(
-      'Converted cii to ubl. The API validated the converted XML before returning it. The engine recorded 2 source elements with no target equivalent.'
+      'Converted cii to ubl, returned as XML. The API validated the converted XML before returning it. The engine recorded 2 source elements with no target equivalent.'
     )
     expect(text).toContain(xml)
   })
@@ -286,7 +286,7 @@ describe('summarizeConvert', () => {
       bytesWritten: 2048,
     })
     expect(text).toBe(
-      'Converted ubl to facturx (profile en16931). The API validated the embedded XML before returning it; the PDF around it was not checked. Written to /tmp/out.pdf (2048 bytes).'
+      'Converted ubl to facturx (profile en16931), returned as a PDF. The API validated the embedded XML before returning it; the PDF around it was not checked. Written to /tmp/out.pdf (2048 bytes).'
     )
   })
 
@@ -298,12 +298,12 @@ describe('summarizeConvert', () => {
       lostElementsCount: 0,
       xml: '<x/>',
     })
-    expect(text).toContain('Converted cii to ubl.')
+    expect(text).toContain('Converted cii to ubl, returned as XML.')
     expect(text).not.toContain('no target equivalent')
   })
 
   it('omits the source clause when the source format is unknown', () => {
     const text = summarizeConvert({ output: 'xml', targetFormat: 'ubl', xml: '<x/>' })
-    expect(text).toContain('Converted to ubl.')
+    expect(text).toContain('Converted to ubl, returned as XML.')
   })
 })
