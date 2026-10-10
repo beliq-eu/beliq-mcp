@@ -13,7 +13,7 @@ function fixture(name: string): ValidationResult {
 describe('summarizeValidation', () => {
   it('reports an invalid verdict with format, profile, ruleset, and counts', () => {
     const text = summarizeValidation(fixture('validate-invalid.json'))
-    expect(text).toContain('Validation: INVALID.')
+    expect(text).toContain('Validation: INVALID (check depth not stated).')
     expect(text).toContain('Format cii (profile xrechnung)')
     expect(text).toContain('checked against Schematron 1.3.16')
     expect(text).toContain('1 error, 1 warning.')
@@ -24,7 +24,7 @@ describe('summarizeValidation', () => {
 
   it('reports a valid verdict and still lists warnings', () => {
     const text = summarizeValidation(fixture('validate-valid.json'))
-    expect(text).toContain('Validation: VALID.')
+    expect(text).toContain('Validation: VALID (check depth not stated).')
     expect(text).toContain('0 errors, 1 warning.')
     expect(text).toContain('- PEPPOL-EN16931-R053 (warning)')
     // No "Errors:" section when there are none.
@@ -59,7 +59,60 @@ describe('summarizeValidation', () => {
       warnings: [],
     } as unknown as ValidationResult
     const text = summarizeValidation(result)
-    expect(text).toBe('Validation: VALID. Format ubl. 0 errors, 0 warnings.')
+    expect(text).toBe('Validation: VALID (check depth not stated). Format ubl. 0 errors, 0 warnings.')
+  })
+
+  // The live-validate-* fixtures are answers of the live API, recorded on
+  // 2026-10-11 at document version 0.15.0 and stored as they came.
+
+  it('puts the badge label the API sent beside the verdict', () => {
+    expect(summarizeValidation(fixture('live-validate-authority.json')).split('\n')[0]).toBe(
+      'Validation: VALID (Authority-checked). Format ubl (profile xrechnung), checked against Schematron 1.3.16. 0 errors, 1 warning.'
+    )
+    expect(summarizeValidation(fixture('live-validate-schema.json'))).toBe(
+      'Validation: VALID (Schema-checked). Format fatturapa (profile italy-fatturapa-ordinaria-fpr12). 0 errors, 0 warnings.'
+    )
+  })
+
+  it('marks a verdict the API sent no badge for, and names no depth', () => {
+    const result = fixture('live-validate-nobadge.json')
+    expect(result.verificationBadgeLabel).toBeUndefined()
+    expect(summarizeValidation(result)).toBe(
+      'Validation: VALID (check depth not stated). Format fatturapa (profile italy-fatturapa-pa-fpa12). 0 errors, 0 warnings.'
+    )
+  })
+
+  it('leads with a France CTC block, before the verdict and the counts', () => {
+    const result = fixture('live-validate-france-previous.json')
+    expect(result.valid).toBe(true)
+    const lines = summarizeValidation(result).split('\n')
+    expect(lines[0]).toBe(result.warnings.find((w) => w.ruleId === 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')?.message)
+    expect(lines[1]).toBe(`France CTC blocking rule ids: ${result.franceCtcBlockingRuleIds?.join(', ')}`)
+    expect(lines[2]).toBe(
+      'Validation: VALID (Authority-checked). Format cii, checked against Schematron 1.3.16. 0 errors, 10 warnings.'
+    )
+    expect(lines[3]).toBe('Ruleset channel: previous; the retained ruleset is served until 2027-05-16')
+  })
+
+  it('prints no France line for a result without the field', () => {
+    expect(summarizeValidation(fixture('live-validate-authority.json'))).not.toContain('France CTC')
+  })
+
+  it('says which embedded file a PDF verdict is about and that the PDF was not checked', () => {
+    const result = {
+      ...fixture('live-validate-schema.json'),
+      pdfInput: { containerChecked: false, attachmentName: 'factur-x.xml', attachmentFoundBy: 'associated-file', attachmentCandidates: 2 },
+    } as ValidationResult
+    expect(summarizeValidation(result).split('\n')[1]).toBe(
+      'PDF input: the verdict is about the embedded XML "factur-x.xml" (found by associated-file). The PDF itself was not checked. 2 embedded files could be taken for the invoice, and nothing compared them.'
+    )
+  })
+
+  it('names neither a depth nor a ruleset for a result nothing validated', () => {
+    const result = { valid: true, verified: false, format: 'cii', schematronVersion: '1.3.16', errors: [], warnings: [] }
+    expect(summarizeValidation(result as unknown as ValidationResult)).toBe(
+      'Validation: NOT VALIDATED. Format cii. 0 errors, 0 warnings.'
+    )
   })
 })
 
@@ -81,6 +134,20 @@ describe('summarizeParse', () => {
       },
     } as unknown as ParseResult
     expect(summarizeParse(result)).toBe('Parsed a ubl document: invoice X-1, 2 lines, gross 240 EUR.')
+  })
+
+  it('lists each warning the API sent under the summary', () => {
+    const warnings = JSON.parse(
+      readFileSync(path.join(here, 'fixtures', 'live-parse-warnings.json'), 'utf8')
+    ) as ParseResult['warnings']
+    const result = { format: 'cii', invoice: { number: 'X-1', lines: [{}] }, warnings } as unknown as ParseResult
+    const lines = summarizeParse(result).split('\n')
+    expect(lines[0]).toBe('Parsed a cii document: invoice X-1, 1 line.')
+    expect(lines[1]).toBe('1 warning:')
+    expect(lines[2]).toBe(
+      `- PARSE_NOT_RETURNED: ${warnings[0].message} Terms: ${warnings[0].terms?.join(', ')}. ` +
+        `${warnings[0].elements?.length} element paths; the structured result lists them.`
+    )
   })
 })
 
@@ -128,10 +195,22 @@ describe('summarizeGenerate', () => {
       output: 'xml',
       schematronVersion: 'XRechnung-2.5.0',
       sha256: 'deadbeef',
-      valid: true,
+      verdict: { valid: true, verificationBadgeLabel: 'Authority-checked' },
       xml: '<x/>',
     })
-    expect(text).toContain('Document sha256 deadbeef; validation passed.')
+    expect(text.split('\n')[0]).toBe(
+      'Generated a xrechnung xml document, checked against Schematron XRechnung-2.5.0, Authority-checked. Document sha256 deadbeef; verdict VALID.'
+    )
+  })
+
+  it('marks a verdict with no badge label, and says so when nothing validated the document', () => {
+    const base = { standard: 'fatturapa', output: 'xml' as const, sha256: 'ab', xml: '<x/>' }
+    expect(summarizeGenerate({ ...base, verdict: { valid: true } }).split('\n')[0]).toBe(
+      'Generated a fatturapa xml document, check depth not stated. Document sha256 ab; verdict VALID.'
+    )
+    expect(
+      summarizeGenerate({ ...base, schematronVersion: '1.3.16', verdict: { valid: true, verified: false } }).split('\n')[0]
+    ).toBe('Generated a fatturapa xml document, not validated. Document sha256 ab; verdict NOT VALIDATED.')
   })
 })
 
@@ -145,8 +224,9 @@ describe('summarizeConvert', () => {
       lostElementsCount: 2,
       xml,
     })
-    expect(text).toContain('Converted cii to ubl.')
-    expect(text).toContain('2 elements could not be carried across.')
+    expect(text.split('\n')[0]).toBe(
+      'Converted cii to ubl. The API validated the converted XML before returning it. The engine recorded 2 source elements with no target equivalent.'
+    )
     expect(text).toContain(xml)
   })
 
@@ -160,7 +240,7 @@ describe('summarizeConvert', () => {
       bytesWritten: 2048,
     })
     expect(text).toBe(
-      'Converted ubl to facturx (profile en16931). Written to /tmp/out.pdf (2048 bytes).'
+      'Converted ubl to facturx (profile en16931). The API validated the embedded XML before returning it; the PDF around it was not checked. Written to /tmp/out.pdf (2048 bytes).'
     )
   })
 
@@ -173,7 +253,7 @@ describe('summarizeConvert', () => {
       xml: '<x/>',
     })
     expect(text).toContain('Converted cii to ubl.')
-    expect(text).not.toContain('carried across')
+    expect(text).not.toContain('no target equivalent')
   })
 
   it('omits the source clause when the source format is unknown', () => {

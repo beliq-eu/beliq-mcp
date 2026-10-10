@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { convertOutputShape, generateOutputShape } from '../src/schema.js'
+import { convertOutputShape, generateOutputShape, parseOutputShape, validateOutputShape } from '../src/schema.js'
 
 // The README ships in the npm tarball, and its "Reading a result" section is
 // where a client author learns the structured fields. A field added to an
@@ -25,6 +25,8 @@ function resultBlock(tool: string): string[] {
 const codeSpans = (text: string): string[] => [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1])
 
 describe.each([
+  ['beliq_validate_einvoice', validateOutputShape],
+  ['beliq_parse_einvoice', parseOutputShape],
   ['beliq_generate_einvoice', generateOutputShape],
   ['beliq_convert_einvoice', convertOutputShape],
 ] as const)('README result fields for %s', (tool, shape) => {

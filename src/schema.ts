@@ -5,6 +5,9 @@ import {
   LIVE_GENERATE_STANDARDS,
   LIVE_PARSE_FORMATS,
   LIVE_PROFILES,
+  LIVE_VALIDATE_FORMATS,
+  type ParseResult,
+  type ValidationResult,
 } from '@beliq/sdk'
 
 // The tools expose the SDK's LIVE_* option sets, imported rather than retyped
@@ -25,16 +28,16 @@ export const validateInputShape = {
     .min(1)
     .optional()
     .describe(
-      'Path to an invoice file on disk: a UBL/CII XML, or a PDF carrying embedded XML (Factur-X / ZUGFeRD). Provide this OR document.'
+      'Path to an invoice file on disk: an XML document, or a PDF carrying embedded XML (Factur-X / ZUGFeRD). Provide this OR document.'
     ),
   format: z
-    .enum(['auto', 'cii', 'ubl'])
+    .enum(LIVE_VALIDATE_FORMATS)
     .optional()
-    .describe("Source syntax hint. 'auto' (default) detects CII vs UBL from the document."),
+    .describe("Source syntax hint. 'auto' (default) detects the format from the document."),
   franceCtc: z
     .boolean()
     .optional()
-    .describe('Apply the French CTC (Factur-X / Chorus Pro) rule overlay during validation.'),
+    .describe('Also apply the French CTC rules (BR-FR-CTC) during validation.'),
 }
 
 const issueShape = z.object({
@@ -44,15 +47,85 @@ const issueShape = z.object({
   message: z.string(),
 })
 
-export const validateOutputShape = {
-  valid: z.boolean(),
+const text = (): z.ZodOptional<z.ZodString> => z.string().optional()
+
+/**
+ * Every field of the SDK's ValidationResult, passed on as the API sent it. The
+ * `satisfies` holds this list to the SDK's type, so a field the API gains
+ * fails the typecheck at the SDK bump instead of being dropped without notice,
+ * which happened three times while this shape named six fields by hand.
+ */
+const validationResultShape = {
+  valid: z
+    .boolean()
+    .describe(
+      'Whether the document passed the rule packs and schemas beliq runs for its format, in the versions this result names. Not a statement that every recipient or tax authority accepts it.'
+    ),
+  verified: z
+    .boolean()
+    .optional()
+    .describe('False only when no ruleset ran (generate with verify: false). Then valid says nothing about the document.'),
   format: z.string(),
-  profileDetected: z.string().optional(),
-  schematronVersion: z.string().optional(),
-  errorCount: z.number(),
-  warningCount: z.number(),
+  profileDetected: text(),
+  verificationTier: text(),
+  verificationBadge: text().describe('Id of the check depth. Compare this, not the label.'),
+  verificationBadgeLabel: text().describe(
+    'The check depth as English display text. Print it as it is. Absent when the API states no depth for this verdict: then say the check depth was not stated, and name none.'
+  ),
+  schematronVersion: text(),
+  ciusVersion: text(),
+  peppolVersion: text(),
+  facturxProfile: text(),
+  facturxVersion: text(),
+  franceCtcApplied: z.boolean().optional(),
+  franceCtcVersion: text(),
+  franceExtendedCtcApplied: z.boolean().optional(),
+  franceCtcBlockingRuleIds: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'French CTC rule ids the API reports as ending a transmission through a French platform. Present also where valid is true, and never empty: when present, lead with it.'
+    ),
+  italyFatturapaXsdBundle: text(),
+  italyFatturapaRuntimeVersion: text(),
+  italySdiMessaggiXsdBundle: text(),
+  italySdiMessaggiXsdVersion: text(),
+  spainFacturaeXsdBundle: text(),
+  spainFacturaeRuntimeVersion: text(),
+  sloveniaEslogXsdBundle: text(),
+  sloveniaEslogRuntimeVersion: text(),
+  polandKsefFa3XsdBundle: text(),
+  polandKsefFa3RuntimeVersion: text(),
+  romaniaRoCiusVersion: text(),
+  netherlandsNlciusVersion: text(),
+  rulesetChannel: text(),
+  rulesetFellBack: z.boolean().optional(),
+  rulesetSunsetsOn: text(),
+  pdfInput: z
+    .object({
+      containerChecked: z.boolean(),
+      attachmentName: z.string().optional(),
+      attachmentFoundBy: z.string(),
+      attachmentCandidates: z.number(),
+    })
+    .optional()
+    .describe(
+      'Present when the document was a PDF: which embedded file the verdict is about. containerChecked is always false, because the PDF itself is not checked.'
+    ),
+  sha256: text(),
+  rulesetSha256: text(),
+  rulesetArtifacts: z
+    .array(z.object({ key: z.string(), version: z.string(), fileSha256: z.string() }))
+    .optional(),
+  driftCheckedAt: text(),
   errors: z.array(issueShape),
   warnings: z.array(issueShape),
+} satisfies Record<keyof ValidationResult, z.ZodTypeAny>
+
+export const validateOutputShape = {
+  ...validationResultShape,
+  errorCount: z.number(),
+  warningCount: z.number(),
 }
 
 export const checkAccountOutputShape = {
@@ -85,11 +158,28 @@ export const parseInputShape = {
 
 // The extracted invoice is passed through verbatim from the API; the shape is
 // documented on the endpoint, so the tool reports it without re-modelling it.
+// The other fields are held to the SDK's type like the validation result.
 export const parseOutputShape = {
   format: z.string(),
-  profileDetected: z.string().optional(),
+  profileDetected: text(),
+  profileUrn: text(),
+  businessProcessId: text(),
+  franceCtcDetected: z.boolean().optional(),
   invoice: z.record(z.string(), z.unknown()),
-}
+  warnings: z
+    .array(
+      z.object({
+        code: z.string(),
+        message: z.string(),
+        field: z.string().optional(),
+        terms: z.array(z.string()).optional(),
+        elements: z.array(z.object({ path: z.string(), count: z.number() })).optional(),
+      })
+    )
+    .describe(
+      'What the document holds and the parsed invoice does not. Report these with the invoice: an empty list is the only case in which the invoice is all the API read.'
+    ),
+} satisfies Record<keyof ParseResult, z.ZodTypeAny>
 
 // ── Generate ──────────────────────────────────────────────────────────────
 
@@ -158,7 +248,7 @@ export const generateInputShape = {
     .boolean()
     .optional()
     .describe(
-      'Validate the generated document before returning and fail if it is not compliant. Defaults to true.'
+      'Validate the generated document before returning it, and fail if it does not pass. Defaults to true.'
     ),
   outputPath: z
     .string()
@@ -182,14 +272,7 @@ export const generateOutputShape = {
   sha256: z.string().optional(),
   rulesetSha256: z.string().optional(),
   livemode: z.boolean().optional(),
-  validationResult: z
-    .object({
-      valid: z.boolean(),
-      schematronVersion: z.string().optional(),
-      errors: z.array(issueShape),
-      warnings: z.array(issueShape),
-    })
-    .optional(),
+  validationResult: z.object(validationResultShape).optional(),
 }
 
 // ── Convert ────────────────────────────────────────────────────────────────
@@ -210,7 +293,7 @@ export const convertInputShape = {
   targetFormat: z
     .enum(LIVE_CONVERT_TARGET_FORMATS)
     .describe(
-      'Format to convert to. cii, ubl, xrechnung, and peppol-bis come back as XML inline; facturx and zugferd produce a PDF and need outputPath.'
+      'Format to convert to. Every target comes back as XML inline, facturx and zugferd included. A PDF comes back only when a hybrid PDF source already is the facturx or zugferd target, and then needs outputPath.'
     ),
   sourceFormat: z
     .enum(LIVE_CONVERT_SOURCE_FORMATS)
@@ -223,18 +306,18 @@ export const convertInputShape = {
   dropFranceCtcOverlay: z
     .boolean()
     .optional()
-    .describe('Drop the French CTC (Factur-X / Chorus Pro) overlay from the converted document.'),
+    .describe('Drop the French CTC overlay from the converted document.'),
   outputPath: z
     .string()
     .min(1)
     .optional()
     .describe(
-      'Where to write the converted document on disk. Required for a facturx/zugferd (PDF) target, optional for an XML target. The call fails if a file already exists at the path.'
+      'Where to write the converted document on disk. Required when a PDF source goes to a facturx or zugferd target, optional otherwise. The call fails if a file already exists at the path.'
     ),
 }
 
 export const convertOutputShape = {
-  output: z.enum(['xml', 'pdf']),
+  output: z.enum(['xml', 'pdf']).describe('What came back, read from the response: xml, or pdf for a returned hybrid PDF.'),
   contentType: z.string(),
   sourceFormat: z.string().optional(),
   targetFormat: z.string().optional(),

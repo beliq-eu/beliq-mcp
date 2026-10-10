@@ -50,9 +50,18 @@ const GENERATED_VALIDATION = {
   errors: [],
   warnings: [],
   schematronVersion: 'XRechnung-2.5.0',
+  verificationBadge: 'independently-rule-checked',
+  verificationBadgeLabel: 'Community-checked',
+  driftCheckedAt: '2026-10-10T02:00:00.000Z',
 } as unknown as ValidationResult
 
-function recordingClient(): Recorder {
+const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])
+
+function startsLikePdf(document: unknown): boolean {
+  return document instanceof Uint8Array && Buffer.from(document.subarray(0, 5)).toString('latin1') === '%PDF-'
+}
+
+function recordingClient(over: { validate?: ValidationResult; parse?: ParseResult } = {}): Recorder {
   const validateCalls: DocCall[] = []
   const parseCalls: DocCall[] = []
   const generateCalls: GenerateInput[] = []
@@ -60,11 +69,11 @@ function recordingClient(): Recorder {
   const client: BeliqClient = {
     async validate(document, options) {
       validateCalls.push({ document, options })
-      return load('validate-invalid.json') as ValidationResult
+      return over.validate ?? (load('validate-invalid.json') as ValidationResult)
     },
     async parse(document, options) {
       parseCalls.push({ document, options })
-      return load('parse-result.json') as ParseResult
+      return over.parse ?? (load('parse-result.json') as ParseResult)
     },
     async generate(input): Promise<GenerateResult> {
       generateCalls.push(input)
@@ -88,10 +97,13 @@ function recordingClient(): Recorder {
     },
     async convert(document, options): Promise<ConvertResult> {
       convertCalls.push({ document, options })
-      if (options.targetFormat === 'facturx' || options.targetFormat === 'zugferd') {
+      // As the API does: a PDF comes back only for a hybrid PDF source that
+      // already is the hybrid target. An XML source gets XML for every target.
+      const hybridTarget = options.targetFormat === 'facturx' || options.targetFormat === 'zugferd'
+      if (hybridTarget && startsLikePdf(document)) {
         return {
           contentType: 'application/pdf',
-          bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
+          bytes: PDF_BYTES,
           meta: { sourceFormat: 'cii', targetFormat: options.targetFormat, profileDetected: 'en16931' },
         }
       }
@@ -197,6 +209,53 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
+  // The live-validate-* fixtures are answers of the live API, recorded on
+  // 2026-10-11 at document version 0.15.0 and stored as they came.
+  it.each([
+    'live-validate-authority.json',
+    'live-validate-schema.json',
+    'live-validate-nobadge.json',
+    'live-validate-france-previous.json',
+    'live-validate-france-latest.json',
+  ])('passes every field of %s on in the structured result', async (name) => {
+    const answer = load(name) as ValidationResult
+    const c = await connect(recordingClient({ validate: answer }).client)
+    const res = await c.callTool({ name: 'beliq_validate_einvoice', arguments: { document: '<x/>' } })
+    expect(res.isError).toBeFalsy()
+    expect(res.structuredContent).toEqual({
+      ...answer,
+      errorCount: answer.errors.length,
+      warningCount: answer.warnings.length,
+    })
+    await c.close()
+  })
+
+  it('returns a France CTC block as a normal result that leads with it', async () => {
+    const answer = load('live-validate-france-previous.json') as ValidationResult
+    const c = await connect(recordingClient({ validate: answer }).client)
+    const res = await c.callTool({ name: 'beliq_validate_einvoice', arguments: { document: '<x/>' } })
+    expect(res.isError).toBeFalsy()
+    const sc = res.structuredContent as Record<string, unknown>
+    expect(sc.valid).toBe(true)
+    expect(sc.franceCtcBlockingRuleIds).toEqual(answer.franceCtcBlockingRuleIds)
+    expect(textOf(res).split('\n')[1]).toBe(
+      `France CTC blocking rule ids: ${answer.franceCtcBlockingRuleIds?.join(', ')}`
+    )
+    await c.close()
+  })
+
+  it('passes pdfInput on and says in the text that the PDF was not checked', async () => {
+    const answer = {
+      ...(load('live-validate-authority.json') as ValidationResult),
+      pdfInput: { containerChecked: false, attachmentFoundBy: 'embedded-file', attachmentCandidates: 1 },
+    } as ValidationResult
+    const c = await connect(recordingClient({ validate: answer }).client)
+    const res = await c.callTool({ name: 'beliq_validate_einvoice', arguments: { document: '<x/>' } })
+    expect((res.structuredContent as Record<string, unknown>).pdfInput).toEqual(answer.pdfInput)
+    expect(textOf(res)).toContain('(found by embedded-file). The PDF itself was not checked.')
+    await c.close()
+  })
+
   it('reads documentPath from disk and forwards the file bytes to validate', async () => {
     const { client, validateCalls } = recordingClient()
     const c = await connect(client)
@@ -258,6 +317,35 @@ describe('beliq MCP server (in-memory round-trip)', () => {
 
     expect(textOf(res)).toContain('Parsed a cii')
     expect(textOf(res)).toContain('INV-2026-001')
+    await c.close()
+  })
+
+  it('passes the parse warnings and the other fields of the API result on', async () => {
+    const warnings = load('live-parse-warnings.json') as ParseResult['warnings']
+    const answer = {
+      ...(load('parse-result.json') as ParseResult),
+      profileUrn: 'urn:cen.eu:en16931:2017',
+      warnings,
+    } as ParseResult
+    const c = await connect(recordingClient({ parse: answer }).client)
+    const res = await c.callTool({ name: 'beliq_parse_einvoice', arguments: { document: '<x/>' } })
+    expect(res.isError).toBeFalsy()
+    expect(res.structuredContent).toEqual(answer)
+    expect(textOf(res)).toContain('- PARSE_NOT_RETURNED: ')
+    await c.close()
+  })
+
+  it('passes the whole verdict of a generate on, with its check depth in the text', async () => {
+    const c = await connect(recordingClient().client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', invoice: MINIMAL_INVOICE },
+    })
+    const sc = res.structuredContent as { validationResult: Record<string, unknown> }
+    expect(sc.validationResult).toEqual(GENERATED_VALIDATION)
+    expect(textOf(res).split('\n')[0]).toBe(
+      'Generated a xrechnung xml document, checked against Schematron XRechnung-2.5.0, Community-checked. Document sha256 xml-sha256; verdict VALID.'
+    )
     await c.close()
   })
 
@@ -512,16 +600,16 @@ describe('beliq MCP server (in-memory round-trip)', () => {
 
     const text = textOf(res)
     expect(text).toContain('Converted cii to ubl')
-    expect(text).toContain('2 elements could not be carried across')
+    expect(text).toContain('The engine recorded 2 source elements with no target equivalent.')
     expect(text).toContain(CONVERTED_XML)
     await c.close()
   })
 
-  it('writes a converted PDF to outputPath for a facturx target', async () => {
+  it('writes the PDF a hybrid PDF source comes back as to outputPath', async () => {
     const { client, convertCalls } = recordingClient()
     const c = await connect(client)
-    const srcPath = path.join(tmpDir, 'src.xml')
-    await writeFile(srcPath, '<Invoice/>', 'utf8')
+    const srcPath = path.join(tmpDir, 'src.pdf')
+    await writeFile(srcPath, PDF_BYTES)
     const outPath = path.join(tmpDir, 'converted.pdf')
     const res = await c.callTool({
       name: 'beliq_convert_einvoice',
@@ -544,16 +632,57 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
-  it('rejects a PDF-target convert that omits outputPath, before calling the API', async () => {
+  it('returns the XML an XML source converted to zugferd comes back as, with no outputPath', async () => {
     const { client, convertCalls } = recordingClient()
     const c = await connect(client)
     const res = await c.callTool({
       name: 'beliq_convert_einvoice',
       arguments: { document: '<Invoice/>', targetFormat: 'zugferd' },
     })
+    expect(res.isError).toBeFalsy()
+    expect(convertCalls).toHaveLength(1)
+    const sc = res.structuredContent as Record<string, unknown>
+    expect(sc.output).toBe('xml')
+    expect(sc.contentType).toBe('application/xml')
+    expect(sc.xml).toBe(CONVERTED_XML)
+    await c.close()
+  })
+
+  it('rejects a PDF source for a hybrid target that omits outputPath, before calling the API', async () => {
+    const { client, convertCalls } = recordingClient()
+    const c = await connect(client)
+    const srcPath = path.join(tmpDir, 'src.pdf')
+    await writeFile(srcPath, PDF_BYTES)
+    const res = await c.callTool({
+      name: 'beliq_convert_einvoice',
+      arguments: { documentPath: srcPath, targetFormat: 'zugferd' },
+    })
     expect(res.isError).toBe(true)
     expect(textOf(res)).toMatch(/outputPath/)
     expect(convertCalls).toHaveLength(0)
+    await c.close()
+  })
+
+  it('lists the failed rules of a document the API refused to convert', async () => {
+    const refused = load('validate-invalid.json') as ValidationResult
+    const client: BeliqClient = {
+      ...recordingClient().client,
+      convert: async () => {
+        throw new BeliqApiError('The converted document failed validation', {
+          status: 422,
+          code: 'CONVERSION_OUTPUT_INVALID',
+          details: { validationResult: refused },
+        })
+      },
+    }
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_convert_einvoice',
+      arguments: { document: '<Invoice/>', targetFormat: 'ubl' },
+    })
+    expect(res.isError).toBe(true)
+    expect(textOf(res)).toContain('beliq API error 422 (CONVERSION_OUTPUT_INVALID)')
+    expect(textOf(res)).toContain('- BR-DE-15 (error)')
     await c.close()
   })
 
