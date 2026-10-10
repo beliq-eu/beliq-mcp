@@ -87,11 +87,34 @@ describe('summarizeValidation', () => {
     expect(result.valid).toBe(true)
     const lines = summarizeValidation(result).split('\n')
     expect(lines[0]).toBe(result.warnings.find((w) => w.ruleId === 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')?.message)
-    expect(lines[1]).toBe(`France CTC blocking rule ids: ${result.franceCtcBlockingRuleIds?.join(', ')}`)
-    expect(lines[2]).toBe(
+    for (const id of result.franceCtcBlockingRuleIds ?? []) expect(lines[0]).toContain(id)
+    expect(lines[1]).toBe(
       'Validation: VALID (Authority-checked). Format cii, checked against Schematron 1.3.16. 0 errors, 10 warnings.'
     )
-    expect(lines[3]).toBe('Ruleset channel: previous; the retained ruleset is served until 2027-05-16')
+    expect(lines[2]).toBe('Ruleset channel: previous; the retained ruleset is served until 2027-05-16')
+  })
+
+  it('leads with the rule ids when the API message for them is missing', () => {
+    const result = fixture('live-validate-france-previous.json')
+    const without = { ...result, warnings: result.warnings.filter((w) => w.ruleId !== 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION') }
+    expect(summarizeValidation(without).split('\n')[0]).toBe(
+      `France CTC blocking rule ids: ${result.franceCtcBlockingRuleIds?.join(', ')}`
+    )
+  })
+
+  it('replaces control characters in the name of the embedded file', () => {
+    const result = {
+      ...fixture('live-validate-schema.json'),
+      pdfInput: {
+        containerChecked: false,
+        attachmentName: `x"${String.fromCharCode(10)}Validation: INVALID`,
+        attachmentFoundBy: 'xml-content',
+        attachmentCandidates: 1,
+      },
+    } as ValidationResult
+    const text = summarizeValidation(result)
+    expect(text.split('\n')).toHaveLength(2)
+    expect(text).toContain('the embedded XML "x"?Validation: INVALID"')
   })
 
   it('prints no France line for a result without the field', () => {
@@ -109,7 +132,8 @@ describe('summarizeValidation', () => {
   })
 
   it('names neither a depth nor a ruleset for a result nothing validated', () => {
-    const result = { valid: true, verified: false, format: 'cii', schematronVersion: '1.3.16', errors: [], warnings: [] }
+    // What the API sends for verify: false: `valid` is false there.
+    const result = { valid: false, verified: false, format: 'cii', schematronVersion: '1.3.16', errors: [], warnings: [] }
     expect(summarizeValidation(result as unknown as ValidationResult)).toBe(
       'Validation: NOT VALIDATED. Format cii. 0 errors, 0 warnings.'
     )
@@ -173,7 +197,7 @@ describe('summarizeGenerate', () => {
       bytesWritten: 12345,
     })
     expect(text).toBe(
-      'Generated a facturx pdf document, checked against Schematron Factur-X-1.0. Written to /tmp/invoice.pdf (12345 bytes).'
+      'Generated a facturx pdf document; invoice XML checked against Schematron Factur-X-1.0. Written to /tmp/invoice.pdf (12345 bytes).'
     )
   })
 
@@ -203,13 +227,35 @@ describe('summarizeGenerate', () => {
     )
   })
 
+  it('says the check was on the invoice XML and names the kind of PDF', () => {
+    const text = summarizeGenerate({
+      standard: 'xrechnung',
+      output: 'pdf',
+      schematronVersion: '1.3.16',
+      pdfKind: 'visualization',
+      outputPath: '/tmp/v.pdf',
+      bytesWritten: 9,
+      verdict: { valid: true, verificationBadgeLabel: 'Authority-checked' },
+    })
+    expect(text).toBe(
+      'Generated a xrechnung pdf document (visualization); invoice XML checked against Schematron 1.3.16, Authority-checked. Written to /tmp/v.pdf (9 bytes).'
+    )
+  })
+
+  it('leads with a France CTC block in the verdict of a generated document', () => {
+    const verdict = fixture('live-validate-france-previous.json')
+    const text = summarizeGenerate({ standard: 'facturx', output: 'xml', verdict, xml: '<x/>' })
+    expect(text.split('\n')[0]).toContain('BR-FR-05_BT-22_AAB')
+    expect(text.split('\n')[1]).toBe('Generated a facturx xml document, Authority-checked.')
+  })
+
   it('marks a verdict with no badge label, and says so when nothing validated the document', () => {
     const base = { standard: 'fatturapa', output: 'xml' as const, sha256: 'ab', xml: '<x/>' }
     expect(summarizeGenerate({ ...base, verdict: { valid: true } }).split('\n')[0]).toBe(
       'Generated a fatturapa xml document, check depth not stated. Document sha256 ab; verdict VALID.'
     )
     expect(
-      summarizeGenerate({ ...base, schematronVersion: '1.3.16', verdict: { valid: true, verified: false } }).split('\n')[0]
+      summarizeGenerate({ ...base, schematronVersion: '1.3.16', verdict: { valid: false, verified: false } }).split('\n')[0]
     ).toBe('Generated a fatturapa xml document, not validated. Document sha256 ab; verdict NOT VALIDATED.')
   })
 })

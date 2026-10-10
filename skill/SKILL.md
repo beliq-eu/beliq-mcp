@@ -52,7 +52,7 @@ The tool returns a structured result plus a one-line verdict:
 - `pdfInput` - present when the document was a PDF: which embedded file the verdict is about. The PDF itself is never checked.
 - `format` - the detected syntax (`cii`, `ubl`, ...).
 - `profileDetected` - the business profile, for example `xrechnung` or `peppol-bis`.
-- `schematronVersion` - the exact ruleset version the check ran against. Cite it when explaining a verdict, so the user knows which authority revision applied.
+- `schematronVersion` - the exact ruleset version the check ran against. Cite it when explaining a verdict, so the user knows which ruleset version applied.
 - `errors[]` and `warnings[]` - each issue has:
   - `ruleId` - the business rule, for example `BR-DE-15` or `PEPPOL-EN16931-R053`.
   - `severity` - `fatal`, `error`, `warning`, or `info`.

@@ -90,10 +90,11 @@ The structured result carries every field of the API's validation result. Its sh
 - `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. The call never overwrites an existing file, so pick a path that does not exist.
 - `pdfKind` is present only for PDF output: `hybrid` (a PDF/A-3 with the XML embedded, for facturx and zugferd) or `visualization` (rendered pages with no XML inside, for xrechnung and peppol-bis, whose legal document stays the XML).
 - `schematronVersion` is the ruleset (Schematron) revision the document was checked against.
+- `outputEnvelope` is the envelope the document is wrapped in, when the API names one.
 - `sha256` is the lowercase-hex SHA-256 of the returned document bytes, so `sha256sum` on the file at `outputPath` reproduces it.
 - `rulesetSha256` is one combined fingerprint of the rule artifacts the document was checked against, present when a ruleset ran.
 - `livemode` is true for a `blq_live_` key and false for a `blq_test_` sandbox key, whose output is [marked as a specimen](https://docs.beliq.eu/api-reference/test-mode/#sandbox-markers) and is not a production invoice.
-- `validationResult` is the API's verdict on the generated document, with every field validate returns, the check depth in `verificationBadgeLabel` included; the text summary names that depth. With the default `verify: true`, a document that fails validation comes back as a tool error that lists the failed rules. With `verify: false` no ruleset runs: `verified` is false, `errors` and `warnings` are empty because nothing checked the document, and the text says `not validated`.
+- `validationResult` is the API's verdict on the generated document, with every field validate returns, the check depth in `verificationBadgeLabel` included; the text summary names that depth. The verdict is about the invoice XML, so for a PDF the text says so and names the kind of PDF. With the default `verify: true`, a document that fails validation comes back as a tool error that lists the failed rules. With `verify: false` no ruleset runs: `verified` is false, `errors` and `warnings` are empty because nothing checked the document, and the text says `not validated`.
 
 `beliq_convert_einvoice` returns a short text summary (with the XML document appended for an XML target) plus a structured result:
 
@@ -102,6 +103,8 @@ The structured result carries every field of the API's validation result. Its sh
 - `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. Like generate, it never overwrites an existing file.
 - `sourceFormat` is the format the engine read, and `targetFormat` the format it produced (the `targetFormat` you asked for when the API does not name one).
 - `profileDetected` is the profile the engine recognised on the source document, when it recognised one.
+- `conversionTools` names the toolchain that did the conversion, when the API names one.
+- `livemode` is true for a `blq_live_` key and false for a `blq_test_` sandbox key.
 - `lostElementsCount` and `lostElements` count and name the source elements the engine recorded as having no target equivalent. A loss the engine does not detect is not counted, so `0` does not say that every field of the source arrived.
 
 A successful convert means the API validated the converted XML before returning it. It carries no verdict and no check depth. A converted document that fails comes back as a tool error that lists the failed rules.

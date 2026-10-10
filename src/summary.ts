@@ -104,24 +104,34 @@ interface GenerateSummary {
   bytesWritten?: number
   xml?: string
   sha256?: string
-  verdict?: Pick<ValidationResult, 'valid' | 'verified' | 'verificationBadgeLabel'>
+  pdfKind?: string
+  verdict?: Pick<
+    ValidationResult,
+    'valid' | 'verified' | 'verificationBadgeLabel' | 'franceCtcBlockingRuleIds' | 'warnings'
+  >
 }
 
 /**
  * A human-readable summary of a generate, with the check depth of the
- * validation the API ran on the document, or that none ran. For an XML result
+ * validation the API ran on the document, or that none ran. The verdict is
+ * about the invoice XML, so for a PDF the summary says so and names the kind
+ * of PDF. A France CTC block in the verdict leads. For an XML result
  * the document is appended in full so a client without structured output still
  * receives it; a PDF is reported by the path it was written to. The document
  * sha256 and the verdict are stated so the model can cite them.
  */
 export function summarizeGenerate(g: GenerateSummary): string {
   const ran = g.verdict?.verified !== false
-  const checked = ran && g.schematronVersion ? `, checked against Schematron ${g.schematronVersion}` : ''
-  const depth = g.verdict === undefined ? '' : ran ? `, ${checkDepth(g.verdict)}` : ', not validated'
+  const schematron = ran && g.schematronVersion ? `checked against Schematron ${g.schematronVersion}` : ''
+  const depth = g.verdict === undefined ? '' : ran ? checkDepth(g.verdict) : 'not validated'
+  const check = [schematron, depth].filter((part) => part !== '').join(', ')
+  const pdfKind = g.output === 'pdf' && g.pdfKind ? ` (${g.pdfKind})` : ''
+  const checked = check === '' ? '' : g.output === 'pdf' ? `; invoice XML ${check}` : `, ${check}`
+  const france = g.verdict ? franceBlockLines(g.verdict).map((line) => `${line}\n`).join('') : ''
   const seal = g.sha256
     ? ` Document sha256 ${g.sha256}${g.verdict === undefined ? '' : `; verdict ${verdictWord(g.verdict)}`}.`
     : ''
-  const header = `Generated a ${g.standard} ${g.output} document${checked}${depth}.${seal}`
+  const header = `${france}Generated a ${g.standard} ${g.output} document${pdfKind}${checked}.${seal}`
 
   if (g.output === 'pdf') {
     const where = g.outputPath ? ` Written to ${g.outputPath} (${plural(g.bytesWritten ?? 0, 'byte')}).` : ''

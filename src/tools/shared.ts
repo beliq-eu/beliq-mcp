@@ -229,6 +229,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     bytesWritten,
     xml: output === 'xml' ? result.xml : undefined,
     sha256: result.sha256,
+    pdfKind: result.meta.pdfKind,
     verdict: vr,
   })
 
@@ -239,6 +240,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       contentType: result.contentType,
       schematronVersion: result.meta.schematronVersion,
       pdfKind: result.meta.pdfKind,
+      outputEnvelope: result.meta.outputEnvelope,
       outputPath,
       bytesWritten,
       xml: output === 'xml' ? result.xml : undefined,
@@ -328,6 +330,8 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
       profileDetected: result.meta.profileDetected,
       lostElementsCount: result.meta.lostElementsCount,
       lostElements: result.meta.lostElements,
+      conversionTools: result.meta.conversionTools,
+      livemode: result.meta.livemode,
       outputPath,
       bytesWritten,
       xml,

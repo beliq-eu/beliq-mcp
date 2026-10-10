@@ -6,6 +6,8 @@ import {
   LIVE_PARSE_FORMATS,
   LIVE_PROFILES,
   LIVE_VALIDATE_FORMATS,
+  type ConvertResult,
+  type GenerateResult,
   type ParseResult,
   type ValidationResult,
 } from '@beliq/sdk'
@@ -52,8 +54,7 @@ const text = (): z.ZodOptional<z.ZodString> => z.string().optional()
 /**
  * Every field of the SDK's ValidationResult, passed on as the API sent it. The
  * `satisfies` holds this list to the SDK's type, so a field the API gains
- * fails the typecheck at the SDK bump instead of being dropped without notice,
- * which happened three times while this shape named six fields by hand.
+ * fails the typecheck at the SDK bump instead of being dropped without notice.
  */
 const validationResultShape = {
   valid: z
@@ -264,6 +265,7 @@ export const generateOutputShape = {
   contentType: z.string(),
   schematronVersion: z.string().optional(),
   pdfKind: z.string().optional(),
+  outputEnvelope: z.string().optional(),
   outputPath: z.string().optional(),
   bytesWritten: z.number().optional(),
   xml: z.string().optional(),
@@ -324,10 +326,54 @@ export const convertOutputShape = {
   profileDetected: z.string().optional(),
   lostElementsCount: z.number().optional(),
   lostElements: z.array(z.string()).optional(),
+  conversionTools: z.string().optional(),
+  livemode: z.boolean().optional(),
   outputPath: z.string().optional(),
   bytesWritten: z.number().optional(),
   xml: z.string().optional(),
 }
+
+/**
+ * Where each field of the SDK's generate and convert results goes in the
+ * output shapes above, which are flat and typed by hand. A field is either
+ * passed on under the named key or left out with its reason. The `satisfies`
+ * makes a field the SDK gains fail the typecheck until it has an entry.
+ */
+type Placed<Shape> = keyof Shape | { omitted: string }
+
+export const GENERATE_RESULT_FIELDS = {
+  contentType: 'contentType',
+  bytes: { omitted: 'the document itself: inline as xml, or written to outputPath' },
+  xml: 'xml',
+  sha256: 'sha256',
+  validationResult: 'validationResult',
+  meta: { omitted: 'flattened, see GENERATE_META_FIELDS' },
+} satisfies Record<keyof GenerateResult, Placed<typeof generateOutputShape>>
+
+export const GENERATE_META_FIELDS = {
+  schematronVersion: 'schematronVersion',
+  pdfKind: 'pdfKind',
+  outputEnvelope: 'outputEnvelope',
+  rulesetSha256: 'rulesetSha256',
+  rulesetArtifacts: { omitted: 'validationResult.rulesetArtifacts carries the same list' },
+  livemode: 'livemode',
+} satisfies Record<keyof GenerateResult['meta'], Placed<typeof generateOutputShape>>
+
+export const CONVERT_RESULT_FIELDS = {
+  contentType: 'contentType',
+  bytes: { omitted: 'the document itself: inline as xml, or written to outputPath' },
+  meta: { omitted: 'flattened, see CONVERT_META_FIELDS' },
+} satisfies Record<keyof ConvertResult, Placed<typeof convertOutputShape>>
+
+export const CONVERT_META_FIELDS = {
+  sourceFormat: 'sourceFormat',
+  targetFormat: 'targetFormat',
+  profileDetected: 'profileDetected',
+  lostElementsCount: 'lostElementsCount',
+  lostElements: 'lostElements',
+  conversionTools: 'conversionTools',
+  livemode: 'livemode',
+} satisfies Record<keyof ConvertResult['meta'], Placed<typeof convertOutputShape>>
 
 export type ValidateInput = z.infer<z.ZodObject<typeof validateInputShape>>
 

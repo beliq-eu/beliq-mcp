@@ -18,6 +18,7 @@ import type {
 } from '@beliq/sdk'
 import { registerAllTools } from '../src/tools/register.js'
 import type { BeliqClient } from '../src/deps.js'
+import { CONVERT_META_FIELDS, CONVERT_RESULT_FIELDS, GENERATE_META_FIELDS, GENERATE_RESULT_FIELDS } from '../src/schema.js'
 
 // A full MCP round-trip over an in-memory transport. The injected client is a
 // fake that RECORDS the arguments it was called with and RETURNS recorded
@@ -238,9 +239,8 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     const sc = res.structuredContent as Record<string, unknown>
     expect(sc.valid).toBe(true)
     expect(sc.franceCtcBlockingRuleIds).toEqual(answer.franceCtcBlockingRuleIds)
-    expect(textOf(res).split('\n')[1]).toBe(
-      `France CTC blocking rule ids: ${answer.franceCtcBlockingRuleIds?.join(', ')}`
-    )
+    expect(textOf(res).split('\n')[0]).toContain(answer.franceCtcBlockingRuleIds?.join(', '))
+    expect(textOf(res).split('\n')[1]).toMatch(/^Validation: VALID \(Authority-checked\)/)
     await c.close()
   })
 
@@ -734,6 +734,44 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(sc.ok).toBe(false)
     expect(sc.status).toBe(401)
     expect(textOf(res)).toMatch(/401/)
+    await c.close()
+  })
+})
+
+describe('the generate and convert field maps', () => {
+  it('pass on every field they place, for a result that carries all of them', async () => {
+    const meta = { sourceFormat: 'cii', targetFormat: 'ubl', profileDetected: 'en16931', lostElementsCount: 1, lostElements: ['ram:Foo'], conversionTools: 'tool 1.0', livemode: false }
+    const client: BeliqClient = {
+      ...recordingClient().client,
+      convert: async () => ({ contentType: 'application/xml', bytes: Buffer.from(CONVERTED_XML, 'utf8'), meta }),
+      generate: async () => ({
+        contentType: 'application/xml',
+        bytes: Buffer.from(GENERATED_XML, 'utf8'),
+        xml: GENERATED_XML,
+        sha256: 'h',
+        validationResult: GENERATED_VALIDATION,
+        meta: { schematronVersion: 's', pdfKind: 'hybrid', outputEnvelope: 'xml', rulesetSha256: 'r', livemode: true },
+      }),
+    }
+    const c = await connect(client)
+    const placed = (map: Record<string, unknown>): string[] =>
+      Object.values(map).filter((v): v is string => typeof v === 'string')
+
+    const conv = await c.callTool({ name: 'beliq_convert_einvoice', arguments: { document: '<x/>', targetFormat: 'ubl' } })
+    const convSc = conv.structuredContent as Record<string, unknown>
+    for (const key of [...placed(CONVERT_RESULT_FIELDS), ...placed(CONVERT_META_FIELDS)]) {
+      expect(convSc[key], key).toBeDefined()
+    }
+    expect(convSc).toMatchObject(meta)
+
+    const gen = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', invoice: MINIMAL_INVOICE },
+    })
+    const genSc = gen.structuredContent as Record<string, unknown>
+    for (const key of [...placed(GENERATE_RESULT_FIELDS), ...placed(GENERATE_META_FIELDS)]) {
+      expect(genSc[key], key).toBeDefined()
+    }
     await c.close()
   })
 })
