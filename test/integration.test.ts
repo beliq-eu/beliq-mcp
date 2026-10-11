@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { Beliq } from '@beliq/sdk'
+import { Beliq, type Invoice } from '@beliq/sdk'
 import { runValidate, runCheckAccount, runParse, runGenerate, runConvert } from '../src/tools/shared.js'
 
 // Live smoke tests against the real beliq API. Skipped unless BELIQ_API_KEY is
@@ -17,7 +17,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const exampleXml = path.join(here, '..', 'examples', 'invalid-xrechnung.xml')
 const invoice = JSON.parse(
   readFileSync(path.join(here, '..', 'examples', 'invoice.json'), 'utf8'),
-) as Record<string, unknown>
+) as Invoice
 
 live('beliq-mcp live (integration)', () => {
   const deps = { client: new Beliq({ apiKey: KEY as string, baseUrl: process.env.BELIQ_BASE_URL }) }
