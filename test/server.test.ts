@@ -122,7 +122,7 @@ async function connect(client: BeliqClient): Promise<Client> {
   return c
 }
 
-function textOf(res: { content: unknown }): string {
+function textOf(res: Awaited<ReturnType<Client['callTool']>>): string {
   return (res.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? '').join('\n')
 }
 
