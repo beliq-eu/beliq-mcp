@@ -6,7 +6,9 @@ import {
   profilesForStandard,
   type DocumentInput,
   type Invoice,
+  type ValidationResult,
 } from '@beliq/sdk'
+import { sniffContentType, toBytes } from '@beliq/sdk/helpers'
 import type { ServerDeps } from '../deps.js'
 import type { ConvertInput, GenerateInput, ParseInput, ValidateInput } from '../schema.js'
 import { summarizeConvert, summarizeGenerate, summarizeParse, summarizeValidation } from '../summary.js'
@@ -22,15 +24,27 @@ function nonEmpty(value: unknown): value is string {
 /** A bad tool input that should come back as a normal (non-fatal) tool error. */
 class BeliqInputError extends Error {}
 
-/** Convert targets that produce a PDF rather than an inline XML document. */
-const PDF_CONVERT_TARGETS = new Set(['facturx', 'zugferd'])
+/** The convert targets for which the API can hand a hybrid PDF source back as a PDF. */
+const HYBRID_CONVERT_TARGETS = new Set(['facturx', 'zugferd'])
+
+/**
+ * An API error as a tool error. A 422 from generate or convert carries the
+ * validation result of the document the API refused, so the failed rules are
+ * appended for the model to act on.
+ */
+function apiErrorResult(err: BeliqApiError): CallToolResult {
+  const code = err.code ? ` (${err.code})` : ''
+  const refused = err.details?.validationResult as ValidationResult | undefined
+  const rules = refused && typeof refused === 'object' ? `\n${summarizeValidation(refused)}` : ''
+  return errorResult(`beliq API error ${err.status}${code}: ${err.message}${rules}`)
+}
 
 /**
  * Resolve a document-carrying input to the bytes/text the SDK reads. Exactly
  * one of document (inline XML) or documentPath (a file on disk) must be set; a
  * file is read as raw bytes so the SDK can sniff XML vs an embedded-XML PDF.
  */
-async function resolveDocument(input: { document?: string; documentPath?: string }): Promise<DocumentInput> {
+async function resolveDocument(input: { document?: string; documentPath?: string }): Promise<string | Uint8Array> {
   const hasDoc = nonEmpty(input.document)
   const hasPath = nonEmpty(input.documentPath)
   if (hasDoc === hasPath) {
@@ -42,8 +56,10 @@ async function resolveDocument(input: { document?: string; documentPath?: string
 
 /**
  * Validate one document and shape the MCP result: a human-readable verdict in
- * the text content plus the full structured result. Input and API errors come
- * back as isError so the model can self-correct; only unexpected faults throw.
+ * the text content plus every field of the API result. A document that is not
+ * valid, or that carries France CTC blocking rule ids, is a normal result:
+ * isError is for input and API errors, so the model can self-correct. Only
+ * unexpected faults throw.
  */
 export async function runValidate(input: ValidateInput, deps: ServerDeps): Promise<CallToolResult> {
   let document: DocumentInput
@@ -63,22 +79,10 @@ export async function runValidate(input: ValidateInput, deps: ServerDeps): Promi
     const warnings = result.warnings ?? []
     return {
       content: [{ type: 'text', text: summarizeValidation(result) }],
-      structuredContent: {
-        valid: result.valid,
-        format: result.format,
-        profileDetected: result.profileDetected,
-        schematronVersion: result.schematronVersion,
-        errorCount: errors.length,
-        warningCount: warnings.length,
-        errors,
-        warnings,
-      },
+      structuredContent: { ...result, errorCount: errors.length, warningCount: warnings.length, errors, warnings },
     }
   } catch (err) {
-    if (err instanceof BeliqApiError) {
-      const code = err.code ? ` (${err.code})` : ''
-      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
-    }
+    if (err instanceof BeliqApiError) return apiErrorResult(err)
     throw err
   }
 }
@@ -128,8 +132,8 @@ export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult>
 
 /**
  * Parse one document into a structured EN 16931 invoice and shape the MCP
- * result: a one-line summary in the text content plus the full invoice in
- * structuredContent. Input and API errors come back as isError so the model can
+ * result: a summary with the API's warnings in the text content plus the full
+ * result in structuredContent. Input and API errors come back as isError so the model can
  * self-correct; only unexpected faults throw.
  */
 export async function runParse(input: ParseInput, deps: ServerDeps): Promise<CallToolResult> {
@@ -145,27 +149,20 @@ export async function runParse(input: ParseInput, deps: ServerDeps): Promise<Cal
     const result = await deps.client.parse(document, { format: input.format })
     return {
       content: [{ type: 'text', text: summarizeParse(result) }],
-      structuredContent: {
-        format: result.format,
-        profileDetected: result.profileDetected,
-        invoice: result.invoice,
-      },
+      structuredContent: { ...result, warnings: result.warnings ?? [] },
     }
   } catch (err) {
-    if (err instanceof BeliqApiError) {
-      const code = err.code ? ` (${err.code})` : ''
-      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
-    }
+    if (err instanceof BeliqApiError) return apiErrorResult(err)
     throw err
   }
 }
 
 /**
- * Generate a compliant document from an EN 16931 invoice. XML comes back inline
- * in the text content; a PDF (or an XML with outputPath set) is written to disk
- * and reported by path. verify defaults to true so the tool fails closed rather
- * than hand back a non-compliant document. Input and API errors come back as
- * isError so the model can self-correct.
+ * Generate a document from an EN 16931 invoice. XML comes back inline in the
+ * text content; a PDF (or an XML with outputPath set) is written to disk and
+ * reported by path. verify defaults to true, so the API refuses a document
+ * that fails its own validation instead of handing it back. Input and API
+ * errors come back as isError so the model can self-correct.
  */
 export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promise<CallToolResult> {
   const output = input.output ?? 'xml'
@@ -202,10 +199,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       seal: true,
     })
   } catch (err) {
-    if (err instanceof BeliqApiError) {
-      const code = err.code ? ` (${err.code})` : ''
-      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
-    }
+    if (err instanceof BeliqApiError) return apiErrorResult(err)
     throw err
   }
 
@@ -231,7 +225,8 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     bytesWritten,
     xml: output === 'xml' ? result.xml : undefined,
     sha256: result.sha256,
-    valid: vr?.valid,
+    pdfKind: result.meta.pdfKind,
+    verdict: vr,
   })
 
   return {
@@ -241,33 +236,28 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       contentType: result.contentType,
       schematronVersion: result.meta.schematronVersion,
       pdfKind: result.meta.pdfKind,
+      outputEnvelope: result.meta.outputEnvelope,
       outputPath,
       bytesWritten,
       xml: output === 'xml' ? result.xml : undefined,
       sha256: result.sha256,
       rulesetSha256: result.meta.rulesetSha256,
       livemode: result.meta.livemode,
-      validationResult: vr
-        ? {
-            valid: vr.valid,
-            schematronVersion: vr.schematronVersion,
-            errors: vr.errors ?? [],
-            warnings: vr.warnings ?? [],
-          }
-        : undefined,
+      validationResult: vr ? { ...vr, errors: vr.errors ?? [], warnings: vr.warnings ?? [] } : undefined,
     },
   }
 }
 
 /**
- * Convert a document from one EN 16931 format to another. An XML target comes
- * back inline; a PDF target (facturx / zugferd) is written to disk and reported
- * by path. Any elements the conversion could not carry across are surfaced, so
- * a lossy conversion is visible. Input and API errors come back as isError so
- * the model can self-correct.
+ * Convert a document from one EN 16931 format to another. The API returns XML
+ * for every target, facturx and zugferd included, and it comes back inline. A
+ * PDF comes back only when a hybrid PDF source already is the target; it is
+ * written to disk and reported by path. The count of lost elements is what the
+ * engine recorded, and a loss it does not detect is not in it. Input and API
+ * errors come back as isError so the model can self-correct.
  */
 export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise<CallToolResult> {
-  let document: DocumentInput
+  let document: string | Uint8Array
   try {
     document = await resolveDocument(input)
   } catch (err) {
@@ -275,11 +265,11 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
     return errorResult(`Could not read the document: ${(err as Error).message}`)
   }
 
-  const output: 'xml' | 'pdf' = PDF_CONVERT_TARGETS.has(input.targetFormat) ? 'pdf' : 'xml'
   const outputPath = nonEmpty(input.outputPath) ? input.outputPath.trim() : undefined
-  if (output === 'pdf' && !outputPath) {
+  const pdfSource = sniffContentType(toBytes(document)) === 'application/pdf'
+  if (pdfSource && HYBRID_CONVERT_TARGETS.has(input.targetFormat) && !outputPath) {
     return errorResult(
-      `Converting to ${input.targetFormat} produces a PDF and needs outputPath: the file path to write it to.`
+      `A PDF source converted to ${input.targetFormat} can come back as a PDF and needs outputPath: the file path to write it to.`
     )
   }
 
@@ -292,13 +282,14 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
       dropFranceCtcOverlay: input.dropFranceCtcOverlay,
     })
   } catch (err) {
-    if (err instanceof BeliqApiError) {
-      const code = err.code ? ` (${err.code})` : ''
-      return errorResult(`beliq API error ${err.status}${code}: ${err.message}`)
-    }
+    if (err instanceof BeliqApiError) return apiErrorResult(err)
     throw err
   }
 
+  const output: 'xml' | 'pdf' = result.contentType.includes('pdf') ? 'pdf' : 'xml'
+  if (output === 'pdf' && !outputPath) {
+    return errorResult('The API returned a PDF, which needs outputPath: the file path to write it to.')
+  }
   const xml = output === 'xml' ? new TextDecoder().decode(result.bytes) : undefined
   const targetFormat = result.meta.targetFormat ?? input.targetFormat
 
@@ -336,6 +327,8 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
       profileDetected: result.meta.profileDetected,
       lostElementsCount: result.meta.lostElementsCount,
       lostElements: result.meta.lostElements,
+      conversionTools: result.meta.conversionTools,
+      livemode: result.meta.livemode,
       outputPath,
       bytesWritten,
       xml,
