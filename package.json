@@ -1,6 +1,6 @@
 {
   "name": "beliq-mcp",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "beliq MCP server: validate, parse, generate, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) for MCP clients. Every verdict states how deep its check went.",
   "license": "MIT",
   "type": "module",
