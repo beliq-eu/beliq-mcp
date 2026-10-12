@@ -219,7 +219,7 @@ describe('summarizeGenerate', () => {
       output: 'xml',
       schematronVersion: 'XRechnung-2.5.0',
       sha256: 'deadbeef',
-      verdict: { valid: true, verificationBadgeLabel: 'Authority-checked' },
+      verdict: { valid: true, verificationBadgeLabel: 'Authority-checked', warnings: [] },
       xml: '<x/>',
     })
     expect(text.split('\n')[0]).toBe(
@@ -235,7 +235,7 @@ describe('summarizeGenerate', () => {
       pdfKind: 'visualization',
       outputPath: '/tmp/v.pdf',
       bytesWritten: 9,
-      verdict: { valid: true, verificationBadgeLabel: 'Authority-checked' },
+      verdict: { valid: true, verificationBadgeLabel: 'Authority-checked', warnings: [] },
     })
     expect(text).toBe(
       'Generated a xrechnung pdf document (visualization); invoice XML checked against Schematron 1.3.16, Authority-checked. Written to /tmp/v.pdf (9 bytes).'
@@ -251,11 +251,11 @@ describe('summarizeGenerate', () => {
 
   it('marks a verdict with no badge label, and says so when nothing validated the document', () => {
     const base = { standard: 'fatturapa', output: 'xml' as const, sha256: 'ab', xml: '<x/>' }
-    expect(summarizeGenerate({ ...base, verdict: { valid: true } }).split('\n')[0]).toBe(
+    expect(summarizeGenerate({ ...base, verdict: { valid: true, warnings: [] } }).split('\n')[0]).toBe(
       'Generated a fatturapa xml document, check depth not stated. Document sha256 ab; verdict VALID.'
     )
     expect(
-      summarizeGenerate({ ...base, schematronVersion: '1.3.16', verdict: { valid: false, verified: false } }).split('\n')[0]
+      summarizeGenerate({ ...base, schematronVersion: '1.3.16', verdict: { valid: false, verified: false, warnings: [] } }).split('\n')[0]
     ).toBe('Generated a fatturapa xml document, not validated. Document sha256 ab; verdict NOT VALIDATED.')
   })
 })
