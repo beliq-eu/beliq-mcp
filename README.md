@@ -121,8 +121,8 @@ This server depends on the published [`@beliq/sdk`](https://www.npmjs.com/packag
 
 - `npm install`
 - `npm run build` - compile to `dist/`
-- `npm run typecheck`
-- `npm run lint`
+- `npm run typecheck` - src and tests
+- `npm run lint` - ESLint with type information, whole repository
 - `npm test` - unit tests (result summary) and an in-memory MCP round-trip with a fake SDK client
 - `BELIQ_API_KEY=your-key npm run test:integration` - live smoke tests against the real API
 - `npm run scrub:check` - check for em-dashes in source and docs
