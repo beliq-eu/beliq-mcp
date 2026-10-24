@@ -295,7 +295,7 @@ export const convertInputShape = {
   targetFormat: z
     .enum(LIVE_CONVERT_TARGET_FORMATS)
     .describe(
-      'Format to convert to. Every target comes back as XML inline, facturx and zugferd included. A PDF comes back only when a hybrid PDF source already is the facturx or zugferd target, and then needs outputPath.'
+      'Format to convert to. An XML source comes back as XML inline for every target, facturx and zugferd included. A hybrid PDF source sent to facturx or zugferd comes back as a PDF and needs outputPath.'
     ),
   sourceFormat: z
     .enum(LIVE_CONVERT_SOURCE_FORMATS)

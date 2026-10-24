@@ -1,5 +1,13 @@
 import type { ParseResult, ValidationResult } from '@beliq/sdk'
-import { checkDepth, franceBlockLines, pdfInputLine, rulesetChannelLine, verdictWord } from './verdict.js'
+import {
+  CONVERT_PDF_LINE,
+  FRANCE_CTC_BLOCKING_FINDING_RULE_ID,
+  checkDepth,
+  franceBlockLines,
+  pdfInputLine,
+  rulesetChannelLine,
+  verdictWord,
+} from '@beliq/sdk/helpers'
 
 /** How many issues to spell out before collapsing the rest into a count. */
 const MAX_LISTED_ISSUES = 20
@@ -54,13 +62,18 @@ export function summarizeValidation(result: ValidationResult): string {
     `Validation: ${verdictWord(result)}${depth}. Format ${result.format}${profile}${schematron}. ` +
     `${plural(errors.length, 'error')}, ${plural(warnings.length, 'warning')}.`
 
+  const france = franceBlockLines(result)
+  // The API's own entry for the block already leads, so the capped list does not repeat it.
+  const listedWarnings =
+    france.length > 0 ? warnings.filter((w) => w.ruleId !== FRANCE_CTC_BLOCKING_FINDING_RULE_ID) : warnings
+
   return [
-    ...franceBlockLines(result),
+    ...france,
     header,
     rulesetChannelLine(result),
     pdfInputLine(result),
     ...listSection('Errors', errors),
-    ...listSection('Warnings', warnings),
+    ...listSection('Warnings', listedWarnings),
   ]
     .filter((line): line is string => line !== undefined)
     .join('\n')
@@ -156,10 +169,11 @@ interface ConvertSummary {
 
 /**
  * A human-readable summary of a convert: the source and target formats, any
- * profile, that the API validated the result, and how many source elements the
- * engine recorded as having no target equivalent. A convert carries no verdict,
- * so no check depth is named. For XML the document is appended in full; a PDF
- * is reported by the path it was written to.
+ * profile, that the API validated the invoice XML, which PDF a PDF answer is,
+ * and how many source elements the engine recorded as having no target
+ * equivalent. A convert carries no verdict, so no check depth is named. For XML
+ * the document is appended in full; a PDF is reported by the path it was
+ * written to.
  */
 export function summarizeConvert(c: ConvertSummary): string {
   const fromClause = c.sourceFormat ? `${c.sourceFormat} ` : ''
@@ -167,7 +181,7 @@ export function summarizeConvert(c: ConvertSummary): string {
   const profile = c.profileDetected ? ` (profile ${c.profileDetected})` : ''
   const checked =
     c.output === 'pdf'
-      ? ' The API validated the embedded XML before returning it; the PDF around it was not checked.'
+      ? ` The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE}`
       : ' The API validated the converted XML before returning it.'
   const lost =
     c.lostElementsCount && c.lostElementsCount > 0

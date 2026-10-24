@@ -1,15 +1,15 @@
 # beliq-mcp
 
-An [MCP](https://modelcontextprotocol.io) server for [beliq](https://beliq.eu), the EU e-invoicing compliance API. It lets MCP clients (Claude Desktop, Claude Code, Cursor, and others) **validate**, **parse**, **generate**, and **convert** electronic invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS, and the other formats the API carries), and explain exactly what fails. Every verdict states how deep its check went.
+An [MCP](https://modelcontextprotocol.io) server for the [beliq](https://beliq.eu) e-invoice API. It lets MCP clients (Claude Desktop, Claude Code, Cursor, and others) **validate**, **parse**, **generate**, and **convert** electronic invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS, and the other formats the API carries), and explain exactly what fails. Every verdict states how deep its check went.
 
 beliq produces and checks the document. Transmission (Peppol, PDP, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.
 
 ## Tools
 
 - **`beliq_validate_einvoice`** - validate an invoice XML (inline or by file path) or a Factur-X/ZUGFeRD PDF (by file path). Returns the verdict, how deep the check went, the detected format and profile, the ruleset versions it was checked against, and every error and warning with its rule id, severity, location, and message. For a PDF the verdict is about the embedded XML; the PDF itself is not checked.
-- **`beliq_parse_einvoice`** - parse a UBL/CII XML invoice or a Factur-X/ZUGFeRD PDF into a structured EN 16931 invoice (number, dates, currency, seller, buyer, lines, totals). Returns the detected format and profile, the extracted invoice, and warnings that say what the document holds and the parsed invoice does not.
+- **`beliq_parse_einvoice`** - parse a UBL/CII XML invoice or a Factur-X/ZUGFeRD PDF into a structured EN 16931 invoice (fields such as number, dates, currency, seller, buyer, lines and totals). Returns the detected format and profile, the extracted invoice, and warnings that say what the document holds and the parsed invoice does not.
 - **`beliq_generate_einvoice`** - generate a document from an EN 16931 invoice object. XML comes back inline; a PDF is written to the `outputPath` you give. By default (`verify`) the API validates the document before returning it, and a document that fails comes back as a tool error with the failed rules. The tool description tells the model to ask for missing invoice data instead of making it up.
-- **`beliq_convert_einvoice`** - convert a document from one EN 16931 format to another. The result is XML, inline, for every target, `facturx` and `zugferd` included; a PDF comes back only when a hybrid PDF source already is the target, and is written to `outputPath`. Reports how many source elements the engine recorded as having no target equivalent.
+- **`beliq_convert_einvoice`** - convert a document from one EN 16931 format to another. An XML source comes back as XML, inline, for every target, `facturx` and `zugferd` included. A hybrid PDF source sent to `facturx` or `zugferd` comes back as a PDF, written to `outputPath`: the PDF as sent when its embedded XML already is the target, otherwise that PDF re-wrapped around the converted XML and passed by veraPDF against PDF/A-3b. With a test key the PDF is watermarked after any veraPDF check. [The convert reference](https://docs.beliq.eu/api-reference/convert/#a-pdf-sent-for-a-zugferd-or-factur-x-target) has the detail. Reports how many source elements the engine recorded as having no target equivalent.
 - **`beliq_check_account`** - verify the configured API key and report the plan and remaining quota. Calls `GET /v1/me`, which draws no quota; useful as a connection and credential smoke test.
 
 ## Installation
@@ -80,7 +80,7 @@ The structured result carries every field of the API's validation result. Its sh
 `beliq_parse_einvoice` returns a text summary plus a structured result:
 
 - `format`, `profileDetected` and `profileUrn` report the detected syntax and profile; `businessProcessId` and `franceCtcDetected` are present when the document states them.
-- `invoice` is the extracted invoice object (EN 16931 fields: number, dates, currency, seller, buyer, lines, totals). A field the API holds no value for is left out.
+- `invoice` is the extracted invoice object, with EN 16931 fields such as number, dates, currency, seller, buyer, lines and totals. [The parse reference](https://docs.beliq.eu/api-reference/parse/) lists every field. A field the API holds no value for is left out.
 - `warnings` says what the document holds and the parsed invoice does not: each entry has a `code`, a `message`, and, by code, a `field`, the `terms` (EN 16931 business groups) or the `elements` (paths with counts) concerned. The text summary lists them.
 
 `beliq_generate_einvoice` returns a short text summary (with the XML document appended for XML output) plus a structured result:
@@ -98,7 +98,7 @@ The structured result carries every field of the API's validation result. Its sh
 
 `beliq_convert_einvoice` returns a short text summary (with the XML document appended for an XML target) plus a structured result:
 
-- `output` is what came back, read from the response: `xml` for every target when the source is XML, `facturx` and `zugferd` included, and `pdf` only when a hybrid PDF source already is the `facturx` or `zugferd` target. `contentType` is the matching media type.
+- `output` is what came back, read from the response: `xml` for every target when the source is XML, `facturx` and `zugferd` included, and `pdf` when a hybrid PDF source went to a `facturx` or `zugferd` target. `contentType` is the matching media type.
 - `xml` is the converted document inline, present only when XML came back.
 - `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. Like generate, it never overwrites an existing file.
 - `sourceFormat` is the format the engine read, and `targetFormat` the format it produced (the `targetFormat` you asked for when the API does not name one).

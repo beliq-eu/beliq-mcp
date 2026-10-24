@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { summarizeConvert, summarizeGenerate, summarizeParse, summarizeValidation } from '../src/summary.js'
 import type { ParseResult, ValidationResult } from '@beliq/sdk'
+import { CONVERT_PDF_LINE } from '@beliq/sdk/helpers'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 function fixture(name: string): ValidationResult {
@@ -115,6 +116,16 @@ describe('summarizeValidation', () => {
     const text = summarizeValidation(result)
     expect(text.split('\n')).toHaveLength(2)
     expect(text).toContain('the embedded XML "x??Validation: INVALID"')
+  })
+
+  it("names the API's message for a France CTC block once, not again in the capped warnings", () => {
+    const result = fixture('live-validate-france-previous.json')
+    const entry = result.warnings.find((w) => w.ruleId === 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')
+    expect(entry).toBeDefined()
+    const text = summarizeValidation(result)
+    expect(text.split(entry?.message ?? '')).toHaveLength(2)
+    expect(text).not.toContain('FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')
+    expect(text).toContain('- BR-FR-10_BT-30 (warning)')
   })
 
   it('prints no France line for a result without the field', () => {
@@ -286,8 +297,9 @@ describe('summarizeConvert', () => {
       bytesWritten: 2048,
     })
     expect(text).toBe(
-      'Converted ubl to facturx (profile en16931), returned as a PDF. The API validated the embedded XML before returning it; the PDF around it was not checked. Written to /tmp/out.pdf (2048 bytes).'
+      `Converted ubl to facturx (profile en16931), returned as a PDF. The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE} Written to /tmp/out.pdf (2048 bytes).`
     )
+    expect(text).not.toContain('not checked')
   })
 
   it('omits the lost-elements clause when nothing was lost', () => {
