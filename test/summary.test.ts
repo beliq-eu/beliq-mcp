@@ -124,8 +124,9 @@ describe('summarizeValidation', () => {
     expect(entry).toBeDefined()
     const text = summarizeValidation(result)
     expect(text.split(entry?.message ?? '')).toHaveLength(2)
-    expect(text).not.toContain('FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')
+    expect(text).toContain('- FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION (info): the first line of this summary.')
     expect(text).toContain('- BR-FR-10_BT-30 (warning)')
+    expect(text).toContain(`${result.warnings.length} warnings.`)
   })
 
   it('prints no France line for a result without the field', () => {
@@ -290,16 +291,17 @@ describe('summarizeConvert', () => {
   it('reports the written path and byte count for a PDF target', () => {
     const text = summarizeConvert({
       output: 'pdf',
-      sourceFormat: 'ubl',
+      // A PDF comes back only for a hybrid PDF source, whose embedded XML is CII.
+      sourceFormat: 'cii',
       targetFormat: 'facturx',
       profileDetected: 'en16931',
       outputPath: '/tmp/out.pdf',
       bytesWritten: 2048,
     })
     expect(text).toBe(
-      `Converted ubl to facturx (profile en16931), returned as a PDF. The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE} Written to /tmp/out.pdf (2048 bytes).`
+      `Converted cii to facturx (profile en16931), returned as a PDF. The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE} Written to /tmp/out.pdf (2048 bytes).`
     )
-    expect(text).not.toContain('not checked')
+    expect(text).not.toContain('the PDF around it was not checked')
   })
 
   it('omits the lost-elements clause when nothing was lost', () => {

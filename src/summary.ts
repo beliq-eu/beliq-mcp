@@ -63,9 +63,13 @@ export function summarizeValidation(result: ValidationResult): string {
     `${plural(errors.length, 'error')}, ${plural(warnings.length, 'warning')}.`
 
   const france = franceBlockLines(result)
-  // The API's own entry for the block already leads, so the capped list does not repeat it.
+  // The API's own entry for the block already leads, so the list points at it instead of repeating it.
   const listedWarnings =
-    france.length > 0 ? warnings.filter((w) => w.ruleId !== FRANCE_CTC_BLOCKING_FINDING_RULE_ID) : warnings
+    france.length > 0
+      ? warnings.map((w) =>
+          w.ruleId === FRANCE_CTC_BLOCKING_FINDING_RULE_ID ? { ...w, message: 'the first line of this summary.' } : w
+        )
+      : warnings
 
   return [
     ...france,
