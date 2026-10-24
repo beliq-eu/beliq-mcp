@@ -249,9 +249,9 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
 }
 
 /**
- * Convert a document from one EN 16931 format to another. The API returns XML
- * for every target, facturx and zugferd included, and it comes back inline. A
- * PDF comes back only when a hybrid PDF source already is the target; it is
+ * Convert a document from one EN 16931 format to another. An XML source comes
+ * back as XML for every target, facturx and zugferd included, and inline. A
+ * hybrid PDF source sent to facturx or zugferd comes back as a PDF; it is
  * written to disk and reported by path. The count of lost elements is what the
  * engine recorded, and a loss it does not detect is not in it. Input and API
  * errors come back as isError so the model can self-correct.

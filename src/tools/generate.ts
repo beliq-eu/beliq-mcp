@@ -9,7 +9,7 @@ const description = [
   'Use only invoice data the user gave. When a field the target format requires is missing, ask the user for it: do not make up a value so that validation passes.',
   "output 'xml' (default) returns the document inline; 'pdf' needs outputPath to write it to, and is a hybrid PDF/A-3 with the XML embedded for facturx and zugferd, or a visualization with no embedded XML for xrechnung and peppol-bis (whose legal document stays the XML).",
   'By default the API validates the document before returning it (verify), and a document that fails comes back as an error that lists the failed rules. validationResult carries the verdict, with the check depth of that validation in verificationBadgeLabel.',
-  'beliq produces the document; transmission (Peppol, PDP, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.',
+  'beliq produces the document; transmission (Peppol, plateforme agréée, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.',
 ].join(' ')
 
 export function registerGenerate(server: McpServer, deps: ServerDeps): void {

@@ -1,7 +1,7 @@
 {
   "name": "beliq-mcp",
-  "version": "0.4.0",
-  "description": "beliq MCP server: validate, parse, generate, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) for MCP clients. Every verdict states how deep its check went.",
+  "version": "0.4.1",
+  "description": "beliq MCP server: validate, parse, generate, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) for MCP clients. Every verdict carries the check depth the API states, or says that none was stated.",
   "license": "MIT",
   "type": "module",
   "author": {
@@ -56,7 +56,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@beliq/sdk": "^0.5.1",
+    "@beliq/sdk": "^0.5.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.4.3"
   },

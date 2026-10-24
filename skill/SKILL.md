@@ -70,6 +70,6 @@ When reporting back:
 
 ## Scope and wording
 
-beliq validates and produces the document. Transmission (Peppol, PDP, KSeF, SDI), archiving, and tax-authority reporting stay with the user's access point or service provider. Do not describe beliq as sending, filing, submitting, or transmitting an invoice.
+beliq validates and produces the document. Transmission (Peppol, plateforme agréée, KSeF, SDI), archiving, and tax-authority reporting stay with the user's access point or service provider. Do not describe beliq as sending, filing, submitting, or transmitting an invoice.
 
 Only describe the formats and countries beliq actually supports as live. Do not promise coverage for a format that the tool does not return a result for; if validation reports the format as `unknown`, say the document could not be recognized rather than guessing.
