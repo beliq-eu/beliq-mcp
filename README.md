@@ -1,8 +1,8 @@
 # beliq-mcp
 
-An [MCP](https://modelcontextprotocol.io) server for the [beliq](https://beliq.eu) e-invoice API. It lets MCP clients (Claude Desktop, Claude Code, Cursor, and others) **validate**, **parse**, **generate**, and **convert** electronic invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS, and the other formats the API carries), and explain exactly what fails. Every verdict states how deep its check went.
+An [MCP](https://modelcontextprotocol.io) server for the [beliq](https://beliq.eu) e-invoice API. It lets MCP clients (Claude Desktop, Claude Code, Cursor, and others) **validate**, **parse**, **generate**, and **convert** electronic invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS, and the other formats the API carries), and explain exactly what fails. Every verdict carries the check depth the API states for it, or says that none was stated.
 
-beliq produces and checks the document. Transmission (Peppol, PDP, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.
+beliq produces and checks the document. Transmission (Peppol, plateforme agréée, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.
 
 ## Tools
 
