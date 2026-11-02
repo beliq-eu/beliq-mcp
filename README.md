@@ -106,6 +106,7 @@ The structured result carries every field of the API's validation result. Its sh
 - `conversionTools` names the toolchain that did the conversion, when the API names one.
 - `livemode` is true for a `blq_live_` key and false for a `blq_test_` sandbox key.
 - `lostElementsCount` and `lostElements` count and name the source elements the engine recorded as having no target equivalent. A loss the engine does not detect is not counted, so `0` does not say that every field of the source arrived.
+- Each `lostElements` entry has the `path`, `value`, `reason`, `severity` and `acceptableLoss` that [the LostElement schema](https://docs.beliq.eu/api-reference/convert/#lostelement-schema) describes. When the list would pass the API's 6 KB header cap, it holds one `{ "truncated": true }` entry instead of the losses, and `lostElementsCount` stays the exact count.
 
 A successful convert means the API validated the converted XML before returning it. For a `facturx` or `zugferd` target at profile `en16931` that validation is the one for plain EN 16931 CII: no Factur-X profile schema is checked. It carries no verdict and no check depth. A converted document that fails comes back as a tool error that lists the failed rules.
 
