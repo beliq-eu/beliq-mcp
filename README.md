@@ -74,7 +74,7 @@ Add to `~/.cursor/mcp.json` (or a project `.cursor/mcp.json`) using the same `mc
 - `sha256` is the hash of the document that was checked, `rulesetSha256` and `rulesetArtifacts` fingerprint the rule files that ran, and `driftCheckedAt` is when those files were last confirmed to match their upstream sources.
 - `verified` is false only when no ruleset ran, which validate never returns; see generate below.
 - `errors` and `warnings` each carry `ruleId`, `severity`, `location` (an XPath when available), and `message`. `errorCount` and `warningCount` are their lengths.
-- `livemode` is true for a `blq_live_` key and false for a `blq_test_` sandbox key. A test key runs the same rules and gives the same verdict as a live key.
+- `livemode` is false for a `blq_test_` sandbox key and true for any other key. A test key runs the same rules and gives the same verdict as a live key.
 
 The structured result carries every field of the API's validation result. Its shape is checked against the SDK's type, so a field the API adds cannot go missing here without failing the build.
 
@@ -88,7 +88,7 @@ The structured result carries every field of the API's validation result. Its sh
 
 - `output` is `xml` or `pdf`, as requested, and `contentType` is the matching media type (`application/xml` or `application/pdf`).
 - `xml` is the generated document inline, present only for XML output.
-- `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. The call never overwrites an existing file, so pick a path that does not exist. A path that is taken is refused before the API is called, so it costs no document.
+- `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. The call never overwrites an existing file, so pick a path that does not exist. A path that is taken, or whose directory is missing or not writable, is refused before the API is called, so it costs no document.
 - `pdfKind` is present only for PDF output: `hybrid` (a PDF/A-3 with the XML embedded, for facturx and zugferd) or `visualization` (rendered pages with no XML inside, for xrechnung and peppol-bis, whose legal document stays the XML).
 - `schematronVersion` is the ruleset (Schematron) revision the document was checked against.
 - `outputEnvelope` is the envelope the document is wrapped in, when the API names one.
@@ -101,7 +101,7 @@ The structured result carries every field of the API's validation result. Its sh
 
 - `output` is what came back, read from the response: `xml` for every target when the source is XML, `facturx` and `zugferd` included, and `pdf` when a hybrid PDF source went to a `facturx` or `zugferd` target. `contentType` is the matching media type.
 - `xml` is the converted document inline, present only when XML came back.
-- `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. Like generate, it never overwrites an existing file and refuses a taken path before the API is called.
+- `outputPath` and `bytesWritten` are set when the document was written to disk: always for a PDF, and for XML when you set `outputPath`. Like generate, it never overwrites an existing file, and it refuses a path it cannot write before the API is called.
 - `sourceFormat` is the format the engine read, and `targetFormat` the format it produced (the `targetFormat` you asked for when the API does not name one).
 - `profileDetected` is the profile the engine recognised on the source document, when it recognised one.
 - `conversionTools` names the toolchain that did the conversion, when the API names one.

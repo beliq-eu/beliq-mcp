@@ -92,8 +92,9 @@ function recordingClient(
   const parseCalls: DocCall[] = []
   const generateCalls: GenerateInput[] = []
   const convertCalls: DocCall[] = []
+  const livemode = over.livemode ?? false
   const client: BeliqClient = {
-    livemode: over.livemode ?? false,
+    livemode,
     async validate(document, options) {
       validateCalls.push({ document, options })
       return over.validate ?? (load('validate-invalid.json') as ValidationResult)
@@ -110,7 +111,7 @@ function recordingClient(
           bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
           sha256: 'pdf-sha256',
           validationResult: GENERATED_VALIDATION,
-          meta: { schematronVersion: 'XRechnung-2.5.0', pdfKind: 'hybrid', rulesetSha256: 'ruleset-1', livemode: false },
+          meta: { schematronVersion: 'XRechnung-2.5.0', pdfKind: 'hybrid', rulesetSha256: 'ruleset-1', livemode },
         }
       }
       return {
@@ -119,7 +120,7 @@ function recordingClient(
         xml: GENERATED_XML,
         sha256: 'xml-sha256',
         validationResult: GENERATED_VALIDATION,
-        meta: { schematronVersion: 'XRechnung-2.5.0', rulesetSha256: 'ruleset-1', livemode: false },
+        meta: { schematronVersion: 'XRechnung-2.5.0', rulesetSha256: 'ruleset-1', livemode },
       }
     },
     async convert(document, options): Promise<ConvertResult> {
@@ -131,7 +132,7 @@ function recordingClient(
         return {
           contentType: 'application/pdf',
           bytes: PDF_BYTES,
-          meta: { sourceFormat: 'cii', targetFormat: options.targetFormat, profileDetected: 'en16931' },
+          meta: { sourceFormat: 'cii', targetFormat: options.targetFormat, profileDetected: 'en16931', livemode },
         }
       }
       return {
@@ -142,11 +143,12 @@ function recordingClient(
           targetFormat: options.targetFormat,
           lostElementsCount: 2,
           lostElements: LOST_ELEMENTS,
+          livemode,
         },
       }
     },
     async me() {
-      return load('account.json') as AccountInfo
+      return { ...(load('account.json') as AccountInfo), livemode }
     },
   }
   return { client, validateCalls, parseCalls, generateCalls, convertCalls }
@@ -559,6 +561,19 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
+  it('refuses an outputPath whose directory is missing before calling the API', async () => {
+    const { client, generateCalls } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', outputPath: path.join(tmpDir, 'missing', 'inv.xml'), invoice: MINIMAL_INVOICE },
+    })
+    expect(res.isError).toBe(true)
+    expect(textOf(res)).toMatch(/Cannot write to the directory of outputPath/)
+    expect(generateCalls).toHaveLength(0)
+    await c.close()
+  })
+
   it('says in the text that a test key generated a sandbox specimen', async () => {
     const { client } = recordingClient()
     const c = await connect(client)
@@ -815,6 +830,8 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     const sc = res.structuredContent as Record<string, unknown>
     expect(sc.ok).toBe(false)
     expect(sc.status).toBe(401)
+    // A key the API refused has no mode the API vouched for.
+    expect(sc).not.toHaveProperty('livemode')
     expect(textOf(res)).toMatch(/401/)
     await c.close()
   })

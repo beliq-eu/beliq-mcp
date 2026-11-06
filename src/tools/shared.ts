@@ -1,4 +1,5 @@
-import { lstat, readFile, writeFile } from 'node:fs/promises'
+import { access, constants, lstat, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
   BeliqApiError,
@@ -44,19 +45,26 @@ function pathTakenResult(outputPath: string): CallToolResult {
 }
 
 /**
- * Refuse an outputPath that is taken before the paid call, so a document that
- * could not be written costs no quota. The write itself still refuses to
- * overwrite, for a file that appears during the call.
+ * Refuse an outputPath that cannot take a new file before the paid call: one
+ * that is taken, or whose directory is missing or not writable. The write
+ * itself still refuses to overwrite, for a file that appears during the call.
  */
-async function refuseTakenOutputPath(outputPath: string | undefined): Promise<CallToolResult | undefined> {
+async function refuseUnwritableOutputPath(outputPath: string | undefined): Promise<CallToolResult | undefined> {
   if (!outputPath) return undefined
   try {
     await lstat(outputPath)
+    return pathTakenResult(outputPath)
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-    return errorResult(`Could not check outputPath: ${(err as Error).message}`)
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return errorResult(`Could not check outputPath: ${(err as Error).message}`)
+    }
   }
-  return pathTakenResult(outputPath)
+  try {
+    await access(dirname(outputPath), constants.W_OK)
+  } catch (err) {
+    return errorResult(`Cannot write to the directory of outputPath: ${(err as Error).message}`)
+  }
+  return undefined
 }
 
 /**
@@ -118,7 +126,8 @@ export interface CheckAccountResult {
   ok: boolean
   status: number
   plan?: string
-  livemode: boolean
+  /** From the GET /v1/me body; absent when the API refused the key. */
+  livemode?: boolean
   message: string
 }
 
@@ -147,7 +156,7 @@ export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult>
     const quotaText = quota
       ? ` Quota: ${quota.used}/${quota.limit} used, ${quota.remaining} remaining.`
       : ''
-    const livemode = deps.client.livemode
+    const livemode = account.livemode
     return reply({
       ok: true,
       status: 200,
@@ -161,7 +170,7 @@ export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult>
         err.status === 401
           ? 'beliq API key rejected (401). Check the key set in BELIQ_API_KEY.'
           : `Credential check failed (${err.status}): ${err.message}`
-      return reply({ ok: false, status: err.status, livemode: deps.client.livemode, message })
+      return reply({ ok: false, status: err.status, message })
     }
     throw err
   }
@@ -219,7 +228,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     )
   }
 
-  const taken = await refuseTakenOutputPath(outputPath)
+  const taken = await refuseUnwritableOutputPath(outputPath)
   if (taken) return taken
 
   let result
@@ -265,7 +274,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     sha256: result.sha256,
     pdfKind: result.meta.pdfKind,
     verdict: vr,
-    livemode: deps.client.livemode,
+    livemode: result.meta.livemode,
   })
 
   return {
@@ -312,7 +321,7 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
     )
   }
 
-  const taken = await refuseTakenOutputPath(outputPath)
+  const taken = await refuseUnwritableOutputPath(outputPath)
   if (taken) return taken
 
   let result
@@ -355,7 +364,7 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
     outputPath,
     bytesWritten,
     xml,
-    livemode: deps.client.livemode,
+    livemode: result.meta.livemode,
   })
 
   return {

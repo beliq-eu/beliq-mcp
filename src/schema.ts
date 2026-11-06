@@ -125,7 +125,7 @@ const validationResultShape = {
   warnings: z.array(issueShape),
 } satisfies Record<keyof ValidationResult, z.ZodTypeAny>
 
-const livemodeShape = z.boolean().describe('True for a blq_live_ key, false for a blq_test_ sandbox key.')
+const livemodeShape = z.boolean().describe('False for a blq_test_ sandbox key, true for any other key.')
 
 export const validateOutputShape = {
   ...validationResultShape,
@@ -138,7 +138,7 @@ export const checkAccountOutputShape = {
   ok: z.boolean(),
   status: z.number(),
   plan: z.string().optional(),
-  livemode: livemodeShape,
+  livemode: livemodeShape.optional(),
   message: z.string(),
 }
 
