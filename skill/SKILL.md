@@ -34,7 +34,7 @@ Create the API key in the beliq dashboard under API Keys. To send the key as a b
   - `documentPath` - a path to an XML or Factur-X/ZUGFeRD PDF file on disk (provide exactly one of these two).
   - `format` (optional) - `auto` (default, detects the format), or another value the tool's input schema lists: `cii`, `ubl` or one of the national formats.
   - `franceCtc` (optional) - set true to also apply the French CTC rules (BR-FR-CTC).
-- **`beliq_check_account`** - verifies the configured key and reports the plan and remaining quota. It draws no quota. Run it first if a call fails with an auth error, to confirm the key is accepted.
+- **`beliq_check_account`** - verifies the configured key and reports the plan, the remaining quota, and whether the key is live or a `blq_test_` sandbox key. A sandbox key's generated and converted documents are specimens, not production invoices. It draws no quota. Run it first if a call fails with an auth error, to confirm the key is accepted.
 
 ## How to validate
 

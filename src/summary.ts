@@ -9,6 +9,16 @@ import {
   verdictWord,
 } from '@beliq/sdk/helpers'
 
+/**
+ * A blq_test_ key's generate and convert output carries a sandbox marker:
+ * https://docs.beliq.eu/api-reference/test-mode/#sandbox-markers
+ */
+const SANDBOX_LINE = ' Made with a test key: a sandbox specimen, marked as one, and not a production invoice.'
+
+function sandboxLine(livemode: boolean | undefined): string {
+  return livemode === false ? SANDBOX_LINE : ''
+}
+
 /** How many issues to spell out before collapsing the rest into a count. */
 const MAX_LISTED_ISSUES = 20
 
@@ -126,6 +136,7 @@ interface GenerateSummary {
     ValidationResult,
     'valid' | 'verified' | 'verificationBadgeLabel' | 'franceCtcBlockingRuleIds' | 'warnings'
   >
+  livemode?: boolean
 }
 
 /**
@@ -148,7 +159,7 @@ export function summarizeGenerate(g: GenerateSummary): string {
   const seal = g.sha256
     ? ` Document sha256 ${g.sha256}${g.verdict === undefined ? '' : `; verdict ${verdictWord(g.verdict)}`}.`
     : ''
-  const header = `${france}Generated a ${g.standard} ${g.output} document${pdfKind}${checked}.${seal}`
+  const header = `${france}Generated a ${g.standard} ${g.output} document${pdfKind}${checked}.${seal}${sandboxLine(g.livemode)}`
 
   if (g.output === 'pdf') {
     const where = g.outputPath ? ` Written to ${g.outputPath} (${plural(g.bytesWritten ?? 0, 'byte')}).` : ''
@@ -169,6 +180,7 @@ interface ConvertSummary {
   outputPath?: string
   bytesWritten?: number
   xml?: string
+  livemode?: boolean
 }
 
 /**
@@ -191,7 +203,7 @@ export function summarizeConvert(c: ConvertSummary): string {
     c.lostElementsCount && c.lostElementsCount > 0
       ? ` The engine recorded ${plural(c.lostElementsCount, 'source element')} with no target equivalent.`
       : ''
-  const header = `Converted ${fromClause}to ${target}${profile}, returned as ${c.output === 'pdf' ? 'a PDF' : 'XML'}.${checked}${lost}`
+  const header = `Converted ${fromClause}to ${target}${profile}, returned as ${c.output === 'pdf' ? 'a PDF' : 'XML'}.${checked}${lost}${sandboxLine(c.livemode)}`
 
   if (c.output === 'pdf') {
     const where = c.outputPath ? ` Written to ${c.outputPath} (${plural(c.bytesWritten ?? 0, 'byte')}).` : ''

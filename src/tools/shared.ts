@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { access, constants, lstat, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
   BeliqApiError,
@@ -37,6 +38,33 @@ function apiErrorResult(err: BeliqApiError): CallToolResult {
   const refused = err.details?.validationResult as ValidationResult | undefined
   const rules = refused && typeof refused === 'object' ? `\n${summarizeValidation(refused)}` : ''
   return errorResult(`beliq API error ${err.status}${code}: ${err.message}${rules}`)
+}
+
+function pathTakenResult(outputPath: string): CallToolResult {
+  return errorResult(`A file already exists at ${outputPath}. Choose a path that does not exist.`)
+}
+
+/**
+ * Refuse an outputPath that cannot take a new file before the paid call: one
+ * that is taken, or whose directory is missing or not writable. The write
+ * itself still refuses to overwrite, for a file that appears during the call.
+ */
+async function refuseUnwritableOutputPath(outputPath: string | undefined): Promise<CallToolResult | undefined> {
+  if (!outputPath) return undefined
+  try {
+    await lstat(outputPath)
+    return pathTakenResult(outputPath)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return errorResult(`Could not check outputPath: ${(err as Error).message}`)
+    }
+  }
+  try {
+    await access(dirname(outputPath), constants.W_OK)
+  } catch (err) {
+    return errorResult(`Cannot write to the directory of outputPath: ${(err as Error).message}`)
+  }
+  return undefined
 }
 
 /**
@@ -79,7 +107,14 @@ export async function runValidate(input: ValidateInput, deps: ServerDeps): Promi
     const warnings = result.warnings ?? []
     return {
       content: [{ type: 'text', text: summarizeValidation(result) }],
-      structuredContent: { ...result, errorCount: errors.length, warningCount: warnings.length, errors, warnings },
+      structuredContent: {
+        ...result,
+        livemode: deps.client.livemode,
+        errorCount: errors.length,
+        warningCount: warnings.length,
+        errors,
+        warnings,
+      },
     }
   } catch (err) {
     if (err instanceof BeliqApiError) return apiErrorResult(err)
@@ -91,7 +126,16 @@ export interface CheckAccountResult {
   ok: boolean
   status: number
   plan?: string
+  /** From the GET /v1/me body; absent when the API refused the key. */
+  livemode?: boolean
   message: string
+}
+
+/** Which allowance the quota is, per https://docs.beliq.eu/api-reference/authentication/#verifying-a-key */
+function keyModeText(livemode: boolean): string {
+  return livemode
+    ? 'Live key: the quota is the plan quota.'
+    : 'Test key: the quota is the sandbox allowance, calls never bill, and generated or converted documents are sandbox specimens.'
 }
 
 /**
@@ -112,11 +156,13 @@ export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult>
     const quotaText = quota
       ? ` Quota: ${quota.used}/${quota.limit} used, ${quota.remaining} remaining.`
       : ''
+    const livemode = account.livemode
     return reply({
       ok: true,
       status: 200,
       plan,
-      message: `beliq credentials valid; the API key was accepted.${plan ? ` Plan: ${plan}.` : ''}${quotaText}`,
+      livemode,
+      message: `beliq credentials valid; the API key was accepted.${plan ? ` Plan: ${plan}.` : ''}${quotaText} ${keyModeText(livemode)}`,
     })
   } catch (err) {
     if (err instanceof BeliqApiError) {
@@ -182,6 +228,9 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     )
   }
 
+  const taken = await refuseUnwritableOutputPath(outputPath)
+  if (taken) return taken
+
   let result
   try {
     result = await deps.client.generate({
@@ -209,9 +258,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       await writeFile(outputPath, result.bytes, { flag: 'wx' })
       bytesWritten = result.bytes.byteLength
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
-        return errorResult(`A file already exists at ${outputPath}. Choose a path that does not exist.`)
-      }
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') return pathTakenResult(outputPath)
       return errorResult(`Could not write the document: ${(err as Error).message}`)
     }
   }
@@ -227,6 +274,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
     sha256: result.sha256,
     pdfKind: result.meta.pdfKind,
     verdict: vr,
+    livemode: result.meta.livemode,
   })
 
   return {
@@ -273,6 +321,9 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
     )
   }
 
+  const taken = await refuseUnwritableOutputPath(outputPath)
+  if (taken) return taken
+
   let result
   try {
     result = await deps.client.convert(document, {
@@ -299,9 +350,7 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
       await writeFile(outputPath, result.bytes, { flag: 'wx' })
       bytesWritten = result.bytes.byteLength
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
-        return errorResult(`A file already exists at ${outputPath}. Choose a path that does not exist.`)
-      }
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') return pathTakenResult(outputPath)
       return errorResult(`Could not write the document: ${(err as Error).message}`)
     }
   }
@@ -315,6 +364,7 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
     outputPath,
     bytesWritten,
     xml,
+    livemode: result.meta.livemode,
   })
 
   return {
