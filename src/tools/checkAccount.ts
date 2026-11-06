@@ -9,7 +9,7 @@ export function registerCheckAccount(server: McpServer, deps: ServerDeps): void 
     {
       title: 'beliq: Check Account',
       description:
-        'Verify the configured beliq API key and report the plan and remaining quota. Calls GET /v1/me, which draws no quota. Use it as a connection and credential smoke test.',
+        'Verify the configured beliq API key and report the plan, the remaining quota, and whether the key is live or a blq_test_ sandbox key, whose generated and converted documents are sandbox specimens. Calls GET /v1/me, which draws no quota. Use it as a connection and credential smoke test.',
       inputSchema: {},
       outputSchema: checkAccountOutputShape,
       annotations: {

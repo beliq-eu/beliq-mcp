@@ -45,6 +45,8 @@ interface Recorder {
   convertCalls: DocCall[]
 }
 
+/** The text line of a document a `blq_test_` key produced. */
+const SANDBOX_LINE = 'Made with a test key: a sandbox specimen, marked as one, and not a production invoice.'
 const GENERATED_XML = '<rsm:CrossIndustryInvoice>generated</rsm:CrossIndustryInvoice>'
 const CONVERTED_XML = '<Invoice>converted</Invoice>'
 const GENERATED_VALIDATION = {
@@ -83,12 +85,15 @@ function startsLikePdf(document: unknown): boolean {
   return document instanceof Uint8Array && Buffer.from(document.subarray(0, 5)).toString('latin1') === '%PDF-'
 }
 
-function recordingClient(over: { validate?: ValidationResult; parse?: ParseResult } = {}): Recorder {
+function recordingClient(
+  over: { validate?: ValidationResult; parse?: ParseResult; livemode?: boolean } = {}
+): Recorder {
   const validateCalls: DocCall[] = []
   const parseCalls: DocCall[] = []
   const generateCalls: GenerateInput[] = []
   const convertCalls: DocCall[] = []
   const client: BeliqClient = {
+    livemode: over.livemode ?? false,
     async validate(document, options) {
       validateCalls.push({ document, options })
       return over.validate ?? (load('validate-invalid.json') as ValidationResult)
@@ -221,6 +226,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     const sc = res.structuredContent as Record<string, unknown>
     expect(sc.valid).toBe(false)
     expect(sc.format).toBe('cii')
+    expect(sc.livemode).toBe(false)
     expect(sc.errorCount).toBe(1)
     expect(sc.warningCount).toBe(1)
     expect((sc.errors as Array<{ ruleId: string }>)[0].ruleId).toBe('BR-DE-15')
@@ -246,6 +252,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(res.isError).toBeFalsy()
     expect(res.structuredContent).toEqual({
       ...answer,
+      livemode: false,
       errorCount: answer.errors.length,
       warningCount: answer.warnings.length,
     })
@@ -357,7 +364,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
   })
 
   it('passes the whole verdict of a generate on, with its check depth in the text', async () => {
-    const c = await connect(recordingClient().client)
+    const c = await connect(recordingClient({ livemode: true }).client)
     const res = await c.callTool({
       name: 'beliq_generate_einvoice',
       arguments: { standard: 'xrechnung', invoice: MINIMAL_INVOICE },
@@ -533,8 +540,8 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
-  it('refuses to overwrite an existing file at outputPath', async () => {
-    const { client } = recordingClient()
+  it('refuses an existing file at outputPath before calling the API', async () => {
+    const { client, generateCalls } = recordingClient()
     const c = await connect(client)
     const outPath = path.join(tmpDir, 'exists.xml')
     await writeFile(outPath, 'keep me', 'utf8')
@@ -545,8 +552,21 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     })
     expect(res.isError).toBe(true)
     expect(textOf(res)).toMatch(/already exists/)
+    // A generate is a paid call: a path that cannot be written must not cost a document.
+    expect(generateCalls).toHaveLength(0)
     // The existing file is left untouched.
     expect(await readFile(outPath, 'utf8')).toBe('keep me')
+    await c.close()
+  })
+
+  it('says in the text that a test key generated a sandbox specimen', async () => {
+    const { client } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_generate_einvoice',
+      arguments: { standard: 'xrechnung', invoice: MINIMAL_INVOICE },
+    })
+    expect(textOf(res).split('\n')[0]).toContain(SANDBOX_LINE)
     await c.close()
   })
 
@@ -577,6 +597,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
 
   it('surfaces an API error from generate as a tool error the model can act on', async () => {
     const client: BeliqClient = {
+      livemode: false,
       validate: async () => load('validate-invalid.json') as ValidationResult,
       parse: async () => load('parse-result.json') as ParseResult,
       me: async () => load('account.json') as AccountInfo,
@@ -669,6 +690,34 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     await c.close()
   })
 
+  it('refuses an existing file at outputPath before calling convert', async () => {
+    const { client, convertCalls } = recordingClient()
+    const c = await connect(client)
+    const outPath = path.join(tmpDir, 'exists-converted.xml')
+    await writeFile(outPath, 'keep me', 'utf8')
+
+    const res = await c.callTool({
+      name: 'beliq_convert_einvoice',
+      arguments: { document: '<rsm:CrossIndustryInvoice/>', targetFormat: 'ubl', outputPath: outPath },
+    })
+    expect(res.isError).toBe(true)
+    expect(textOf(res)).toMatch(/already exists/)
+    expect(convertCalls).toHaveLength(0)
+    expect(await readFile(outPath, 'utf8')).toBe('keep me')
+    await c.close()
+  })
+
+  it('says in the text that a test key converted a sandbox specimen', async () => {
+    const { client } = recordingClient()
+    const c = await connect(client)
+    const res = await c.callTool({
+      name: 'beliq_convert_einvoice',
+      arguments: { document: '<rsm:CrossIndustryInvoice/>', targetFormat: 'ubl' },
+    })
+    expect(textOf(res).split('\n')[0]).toContain(SANDBOX_LINE)
+    await c.close()
+  })
+
   it('rejects a PDF source for a hybrid target that omits outputPath, before calling the API', async () => {
     const { client, convertCalls } = recordingClient()
     const c = await connect(client)
@@ -727,12 +776,24 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(sc.ok).toBe(true)
     expect(sc.status).toBe(200)
     expect(sc.plan).toBe('Growth')
+    expect(sc.livemode).toBe(false)
     expect(textOf(res)).toContain('9863 remaining')
+    expect(textOf(res)).toContain('Test key: the quota is the sandbox allowance')
+    await c.close()
+  })
+
+  it('check_account says a live key spends the plan quota', async () => {
+    const { client } = recordingClient({ livemode: true })
+    const c = await connect(client)
+    const res = await c.callTool({ name: 'beliq_check_account', arguments: {} })
+    expect((res.structuredContent as Record<string, unknown>).livemode).toBe(true)
+    expect(textOf(res)).toContain('Live key: the quota is the plan quota.')
     await c.close()
   })
 
   it('check_account reports a rejected key as ok:false on a 401', async () => {
     const client: BeliqClient = {
+      livemode: true,
       validate: async () => {
         throw new Error('unused')
       },
