@@ -32,14 +32,14 @@ Create the API key in the beliq dashboard under API Keys. To send the key as a b
 - **`beliq_validate_einvoice`** - the primary tool. Inputs:
   - `document` - the invoice as XML text, OR
   - `documentPath` - a path to an XML or Factur-X/ZUGFeRD PDF file on disk (provide exactly one of these two).
-  - `format` (optional) - `auto` (default, detects the format), `cii`, or `ubl`.
+  - `format` (optional) - `auto` (default, detects the format), or another value the tool's input schema lists: `cii`, `ubl` or one of the national formats.
   - `franceCtc` (optional) - set true to also apply the French CTC rules (BR-FR-CTC).
 - **`beliq_check_account`** - verifies the configured key and reports the plan and remaining quota. It draws no quota. Run it first if a call fails with an auth error, to confirm the key is accepted.
 
 ## How to validate
 
 1. If the user pasted XML, pass it as `document`. If they pointed at a file (especially a PDF), pass `documentPath` - do not try to read a binary PDF into `document`.
-2. Leave `format` as `auto` unless the user is explicit about the syntax.
+2. Leave `format` as `auto` unless the user is explicit about the format.
 3. Set `franceCtc: true` only when the invoice targets the French CTC flow.
 
 ## Interpreting the result
