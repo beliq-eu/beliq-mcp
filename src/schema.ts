@@ -8,6 +8,8 @@ import {
   LIVE_VALIDATE_FORMATS,
   type ConvertResult,
   type GenerateResult,
+  type LostElement,
+  type LostElementsTruncated,
   type ParseResult,
   type ValidationResult,
 } from '@beliq/sdk'
@@ -318,6 +320,20 @@ export const convertInputShape = {
     ),
 }
 
+/** One loss a conversion recorded: https://docs.beliq.eu/api-reference/convert/#lostelement-schema */
+const lostElementShape = {
+  path: z.string().describe('XPath of the lost element in the source document.'),
+  value: z.string().nullable(),
+  reason: z.string(),
+  severity: z.string(),
+  acceptableLoss: z.boolean(),
+} satisfies Record<keyof LostElement, z.ZodTypeAny>
+
+const lostElementsTruncatedShape = {
+  truncated: z.literal(true),
+  reason: z.string().optional(),
+} satisfies Record<keyof LostElementsTruncated, z.ZodTypeAny>
+
 export const convertOutputShape = {
   output: z.enum(['xml', 'pdf']).describe('What came back, read from the response: xml, or pdf for a returned hybrid PDF.'),
   contentType: z.string(),
@@ -325,7 +341,12 @@ export const convertOutputShape = {
   targetFormat: z.string().optional(),
   profileDetected: z.string().optional(),
   lostElementsCount: z.number().optional(),
-  lostElements: z.array(z.string()).optional(),
+  lostElements: z
+    .array(z.union([z.object(lostElementShape), z.object(lostElementsTruncatedShape)]))
+    .optional()
+    .describe(
+      'The losses counted in lostElementsCount, each as https://docs.beliq.eu/api-reference/convert/#lostelement-schema describes, or the one truncation entry the tool description names.'
+    ),
   conversionTools: z.string().optional(),
   livemode: z.boolean().optional(),
   outputPath: z.string().optional(),

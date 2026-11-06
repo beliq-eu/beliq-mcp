@@ -13,6 +13,8 @@ import type {
   ConvertResult,
   GenerateInput,
   GenerateResult,
+  LostElement,
+  LostElementsTruncated,
   ParseResult,
   ValidationResult,
 } from '@beliq/sdk'
@@ -57,6 +59,25 @@ const GENERATED_VALIDATION = {
 } as unknown as ValidationResult
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])
+
+// The worked example of https://docs.beliq.eu/api-reference/convert/#lostelement-schema
+const ENDPOINT_STRIPPED = 'Peppol endpoint stripped (target is not peppol-bis)'
+const LOST_ELEMENTS: LostElement[] = [
+  {
+    path: '/Invoice/{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}AccountingSupplierParty/{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}Party/cbc:EndpointID',
+    value: null,
+    reason: ENDPOINT_STRIPPED,
+    severity: 'info',
+    acceptableLoss: true,
+  },
+  {
+    path: '/Invoice/{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}AccountingCustomerParty/{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}Party/cbc:EndpointID',
+    value: null,
+    reason: ENDPOINT_STRIPPED,
+    severity: 'info',
+    acceptableLoss: true,
+  },
+]
 
 function startsLikePdf(document: unknown): boolean {
   return document instanceof Uint8Array && Buffer.from(document.subarray(0, 5)).toString('latin1') === '%PDF-'
@@ -115,7 +136,7 @@ function recordingClient(over: { validate?: ValidationResult; parse?: ParseResul
           sourceFormat: 'cii',
           targetFormat: options.targetFormat,
           lostElementsCount: 2,
-          lostElements: ['ram:Foo', 'ram:Bar'],
+          lostElements: LOST_ELEMENTS,
         },
       }
     },
@@ -595,7 +616,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(sc.targetFormat).toBe('ubl')
     expect(sc.xml).toBe(CONVERTED_XML)
     expect(sc.lostElementsCount).toBe(2)
-    expect(sc.lostElements).toEqual(['ram:Foo', 'ram:Bar'])
+    expect(sc.lostElements).toEqual(LOST_ELEMENTS)
     expect(sc.outputPath).toBeUndefined()
 
     const text = textOf(res)
@@ -738,9 +759,35 @@ describe('beliq MCP server (in-memory round-trip)', () => {
   })
 })
 
+describe('a lost-elements list past the header cap', () => {
+  it('passes on the truncation entry with the exact count', async () => {
+    const truncated: LostElementsTruncated = {
+      truncated: true,
+      reason: 'Audit list exceeded 6144 bytes (412 entries); see X-Lost-Elements-Count for the exact count.',
+    }
+    const client: BeliqClient = {
+      ...recordingClient().client,
+      convert: async () => ({
+        contentType: 'application/xml',
+        bytes: Buffer.from(CONVERTED_XML, 'utf8'),
+        meta: { sourceFormat: 'ubl', targetFormat: 'cii', lostElementsCount: 412, lostElements: [truncated] },
+      }),
+    }
+    const c = await connect(client)
+    const res = await c.callTool({ name: 'beliq_convert_einvoice', arguments: { document: '<x/>', targetFormat: 'cii' } })
+
+    expect(res.isError).toBeFalsy()
+    const sc = res.structuredContent as Record<string, unknown>
+    expect(sc.lostElementsCount).toBe(412)
+    expect(sc.lostElements).toEqual([truncated])
+    expect(textOf(res)).toContain('The engine recorded 412 source elements with no target equivalent.')
+    await c.close()
+  })
+})
+
 describe('the generate and convert field maps', () => {
   it('pass on every field they place, for a result that carries all of them', async () => {
-    const meta = { sourceFormat: 'cii', targetFormat: 'ubl', profileDetected: 'en16931', lostElementsCount: 1, lostElements: ['ram:Foo'], conversionTools: 'tool 1.0', livemode: false }
+    const meta = { sourceFormat: 'cii', targetFormat: 'ubl', profileDetected: 'en16931', lostElementsCount: 1, lostElements: LOST_ELEMENTS.slice(0, 1), conversionTools: 'tool 1.0', livemode: false }
     const client: BeliqClient = {
       ...recordingClient().client,
       convert: async () => ({ contentType: 'application/xml', bytes: Buffer.from(CONVERTED_XML, 'utf8'), meta }),
