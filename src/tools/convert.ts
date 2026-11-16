@@ -10,7 +10,7 @@ const description = [
   'A successful result means the API validated the invoice XML before returning it. For a facturx or zugferd target at profile en16931 that validation is the one for plain EN 16931 CII: no Factur-X profile schema is checked. It carries no verdict and no check depth; a converted document that fails comes back as an error that lists the failed rules.',
   'lostElementsCount is how many source elements the engine recorded as having no target equivalent. A loss the engine does not detect is not counted, so 0 does not say that every field of the source arrived.',
   'lostElements lists those losses, each with its path, value, reason, severity and acceptableLoss. When the list would pass the API\'s 6 KB header cap, it holds one { truncated: true } entry instead of the losses, and lostElementsCount stays the exact count.',
-  'beliq produces the converted document; transmission (Peppol, plateforme agréée, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.',
+  'beliq produces the converted document and does not send it: delivery through beliq is in development. Until it is available, transmission (Peppol, plateforme agréée, SDI) and tax-authority reporting stay with your access point; archiving stays with you, and beliq does not operate KSeF submission.',
 ].join(' ')
 
 export function registerConvert(server: McpServer, deps: ServerDeps): void {
