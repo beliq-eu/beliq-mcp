@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://docs.beliq.eu/integrations/mcp/",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "beliq-mcp",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       },
