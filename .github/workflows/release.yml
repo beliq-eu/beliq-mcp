@@ -137,7 +137,7 @@ jobs:
           name="$(jq -r .name server.json)"
           version="${GITHUB_REF_NAME#v}"
           url="https://registry.modelcontextprotocol.io/v0/servers/$(jq -rn --arg s "$name" '$s|@uri')/versions/$version"
-          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$url")"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --max-time 30 "$url")"
           case "$code" in
             200) echo "listed=true" >> "$GITHUB_OUTPUT"; echo "$name $version is listed already" ;;
             404) echo "listed=false" >> "$GITHUB_OUTPUT" ;;
@@ -155,17 +155,22 @@ jobs:
           rm "$archive"
 
       # npm can take minutes to serve a new version, and the registry answers
-      # that with a 404 and "wait and retry". Each try logs in again, so a
+      # that publish with a 404 and "wait and retry". Only that answer is
+      # retried; a failed login fails the step. Each try logs in again, so a
       # registry token never outlives a wait.
       - name: Publish to the MCP Registry
         if: steps.listed.outputs.listed == 'false'
         run: |
           deadline=$((SECONDS + 600))
-          until out="$(./mcp-publisher login github-oidc 2>&1 && ./mcp-publisher publish 2>&1)"; do
+          while true; do
+            ./mcp-publisher login github-oidc
+            if out="$(./mcp-publisher publish 2>&1)"; then
+              echo "$out"
+              break
+            fi
             echo "$out"
             if ! grep -qE 'status: 404|retry later' <<<"$out" || [ "$SECONDS" -ge "$deadline" ]; then
               exit 1
             fi
             sleep 30
           done
-          echo "$out"
