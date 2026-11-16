@@ -5,6 +5,7 @@ import {
   BeliqApiError,
   isProfileAllowedForStandard,
   profilesForStandard,
+  retryClass,
   type DocumentInput,
   type Invoice,
   type ValidationResult,
@@ -29,15 +30,43 @@ class BeliqInputError extends Error {}
 const HYBRID_CONVERT_TARGETS = new Set(['facturx', 'zugferd'])
 
 /**
+ * An outage the SDK stopped retrying, because its next wait would pass the
+ * retry budget, as a tool error the model can act on: beliq is unavailable,
+ * and when to try again, from the server's `Retry-After` when it sent one.
+ */
+function unavailableResult(err: unknown): CallToolResult {
+  const cause =
+    err instanceof BeliqApiError
+      ? `beliq API error ${err.status}${err.code ? ` (${err.code})` : ''}: ${err.message}`
+      : `Could not reach the beliq API: ${(err as Error).message}`
+  const seconds = err instanceof BeliqApiError ? err.retryAfterSeconds : undefined
+  const when =
+    seconds !== undefined
+      ? `Try the same call again in ${seconds} seconds.`
+      : 'beliq did not say when; try the same call again later.'
+  return errorResult(`beliq is unavailable for now. ${when}\n${cause}`)
+}
+
+/**
  * An API error as a tool error. A 422 from generate or convert carries the
  * validation result of the document the API refused, so the failed rules are
  * appended for the model to act on.
  */
 function apiErrorResult(err: BeliqApiError): CallToolResult {
+  if (retryClass(err) === 'budget') return unavailableResult(err)
   const code = err.code ? ` (${err.code})` : ''
   const refused = err.details?.validationResult as ValidationResult | undefined
   const rules = refused && typeof refused === 'object' ? `\n${summarizeValidation(refused)}` : ''
-  return errorResult(`beliq API error ${err.status}${code}: ${err.message}${rules}`)
+  const when =
+    err.retryAfterSeconds !== undefined ? `\nTry the same call again in ${err.retryAfterSeconds} seconds.` : ''
+  return errorResult(`beliq API error ${err.status}${code}: ${err.message}${rules}${when}`)
+}
+
+/** A failure of an API call as a tool error, or undefined for a fault the server should throw. */
+function callErrorResult(err: unknown): CallToolResult | undefined {
+  if (err instanceof BeliqApiError) return apiErrorResult(err)
+  if (retryClass(err) === 'budget') return unavailableResult(err)
+  return undefined
 }
 
 function pathTakenResult(outputPath: string): CallToolResult {
@@ -118,7 +147,8 @@ export async function runValidate(input: ValidateInput, deps: ServerDeps, signal
       },
     }
   } catch (err) {
-    if (err instanceof BeliqApiError) return apiErrorResult(err)
+    const result = callErrorResult(err)
+    if (result) return result
     throw err
   }
 }
@@ -173,6 +203,9 @@ export async function runCheckAccount(deps: ServerDeps, signal?: AbortSignal): P
           : `Credential check failed (${err.status}): ${err.message}`
       return reply({ ok: false, status: err.status, message })
     }
+    if (retryClass(err) === 'budget') {
+      return reply({ ok: false, status: 0, message: `Could not reach the beliq API: ${(err as Error).message}` })
+    }
     throw err
   }
 }
@@ -199,7 +232,8 @@ export async function runParse(input: ParseInput, deps: ServerDeps, signal?: Abo
       structuredContent: { ...result, warnings: result.warnings ?? [] },
     }
   } catch (err) {
-    if (err instanceof BeliqApiError) return apiErrorResult(err)
+    const result = callErrorResult(err)
+    if (result) return result
     throw err
   }
 }
@@ -249,7 +283,8 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps, signal
       seal: true,
     }, { signal })
   } catch (err) {
-    if (err instanceof BeliqApiError) return apiErrorResult(err)
+    const result = callErrorResult(err)
+    if (result) return result
     throw err
   }
 
@@ -335,7 +370,8 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps, signal?:
       signal,
     })
   } catch (err) {
-    if (err instanceof BeliqApiError) return apiErrorResult(err)
+    const result = callErrorResult(err)
+    if (result) return result
     throw err
   }
 
