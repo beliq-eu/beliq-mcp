@@ -89,7 +89,7 @@ async function resolveDocument(input: { document?: string; documentPath?: string
  * isError is for input and API errors, so the model can self-correct. Only
  * unexpected faults throw.
  */
-export async function runValidate(input: ValidateInput, deps: ServerDeps): Promise<CallToolResult> {
+export async function runValidate(input: ValidateInput, deps: ServerDeps, signal?: AbortSignal): Promise<CallToolResult> {
   let document: DocumentInput
   try {
     document = await resolveDocument(input)
@@ -102,6 +102,7 @@ export async function runValidate(input: ValidateInput, deps: ServerDeps): Promi
     const result = await deps.client.validate(document, {
       format: input.format,
       franceCtc: input.franceCtc,
+      signal,
     })
     const errors = result.errors ?? []
     const warnings = result.warnings ?? []
@@ -143,14 +144,14 @@ function keyModeText(livemode: boolean): string {
  * validity rather than throwing, so a rejected key is a normal (non-error)
  * result the model can act on.
  */
-export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult> {
+export async function runCheckAccount(deps: ServerDeps, signal?: AbortSignal): Promise<CallToolResult> {
   const reply = (r: CheckAccountResult): CallToolResult => ({
     content: [{ type: 'text', text: r.message }],
     structuredContent: { ...r },
   })
 
   try {
-    const account = await deps.client.me()
+    const account = await deps.client.me({ signal })
     const plan = account.plan?.name ?? undefined
     const quota = account.quota
     const quotaText = quota
@@ -182,7 +183,7 @@ export async function runCheckAccount(deps: ServerDeps): Promise<CallToolResult>
  * result in structuredContent. Input and API errors come back as isError so the model can
  * self-correct; only unexpected faults throw.
  */
-export async function runParse(input: ParseInput, deps: ServerDeps): Promise<CallToolResult> {
+export async function runParse(input: ParseInput, deps: ServerDeps, signal?: AbortSignal): Promise<CallToolResult> {
   let document: DocumentInput
   try {
     document = await resolveDocument(input)
@@ -192,7 +193,7 @@ export async function runParse(input: ParseInput, deps: ServerDeps): Promise<Cal
   }
 
   try {
-    const result = await deps.client.parse(document, { format: input.format })
+    const result = await deps.client.parse(document, { format: input.format, signal })
     return {
       content: [{ type: 'text', text: summarizeParse(result) }],
       structuredContent: { ...result, warnings: result.warnings ?? [] },
@@ -210,7 +211,7 @@ export async function runParse(input: ParseInput, deps: ServerDeps): Promise<Cal
  * that fails its own validation instead of handing it back. Input and API
  * errors come back as isError so the model can self-correct.
  */
-export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promise<CallToolResult> {
+export async function runGenerate(input: GenerateInput, deps: ServerDeps, signal?: AbortSignal): Promise<CallToolResult> {
   const output = input.output ?? 'xml'
   const outputPath = nonEmpty(input.outputPath) ? input.outputPath.trim() : undefined
   if (output === 'pdf' && !outputPath) {
@@ -246,7 +247,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
       // Always seal so the tool can hand back the document sha256 and the
       // validation verdict for the model to cite.
       seal: true,
-    })
+    }, { signal })
   } catch (err) {
     if (err instanceof BeliqApiError) return apiErrorResult(err)
     throw err
@@ -304,7 +305,7 @@ export async function runGenerate(input: GenerateInput, deps: ServerDeps): Promi
  * engine recorded, and a loss it does not detect is not in it. Input and API
  * errors come back as isError so the model can self-correct.
  */
-export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise<CallToolResult> {
+export async function runConvert(input: ConvertInput, deps: ServerDeps, signal?: AbortSignal): Promise<CallToolResult> {
   let document: string | Uint8Array
   try {
     document = await resolveDocument(input)
@@ -331,6 +332,7 @@ export async function runConvert(input: ConvertInput, deps: ServerDeps): Promise
       sourceFormat: input.sourceFormat,
       targetProfile: input.targetProfile,
       dropFranceCtcOverlay: input.dropFranceCtcOverlay,
+      signal,
     })
   } catch (err) {
     if (err instanceof BeliqApiError) return apiErrorResult(err)

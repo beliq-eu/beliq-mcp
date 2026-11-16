@@ -28,6 +28,6 @@ export function registerGenerate(server: McpServer, deps: ServerDeps): void {
         openWorldHint: true,
       },
     },
-    async (args) => runGenerate(args as GenerateInput, deps)
+    async (args, extra) => runGenerate(args as GenerateInput, deps, extra.signal)
   )
 }

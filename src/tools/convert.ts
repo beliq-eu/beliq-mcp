@@ -29,6 +29,6 @@ export function registerConvert(server: McpServer, deps: ServerDeps): void {
         openWorldHint: true,
       },
     },
-    async (args) => runConvert(args as ConvertInput, deps)
+    async (args, extra) => runConvert(args as ConvertInput, deps, extra.signal)
   )
 }

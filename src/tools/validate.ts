@@ -29,6 +29,6 @@ export function registerValidate(server: McpServer, deps: ServerDeps): void {
         openWorldHint: true,
       },
     },
-    async (args) => runValidate(args as ValidateInput, deps)
+    async (args, extra) => runValidate(args as ValidateInput, deps, extra.signal)
   )
 }
