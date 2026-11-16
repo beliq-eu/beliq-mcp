@@ -104,6 +104,7 @@ const validationResultShape = {
   rulesetChannel: text(),
   rulesetFellBack: z.boolean().optional(),
   rulesetSunsetsOn: text(),
+  rulesetSupersededOn: text(),
   pdfInput: z
     .object({
       containerChecked: z.boolean(),

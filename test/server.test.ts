@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
@@ -223,7 +223,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(res.isError).toBeFalsy()
     expect(validateCalls).toHaveLength(1)
     expect(validateCalls[0].document).toBe('<rsm:CrossIndustryInvoice/>')
-    expect(validateCalls[0].options).toEqual({ format: 'cii', franceCtc: true })
+    expect(validateCalls[0].options).toEqual({ format: 'cii', franceCtc: true, signal: expect.any(AbortSignal) })
 
     const sc = res.structuredContent as Record<string, unknown>
     expect(sc.valid).toBe(false)
@@ -338,7 +338,7 @@ describe('beliq MCP server (in-memory round-trip)', () => {
     expect(res.isError).toBeFalsy()
     expect(parseCalls).toHaveLength(1)
     expect(parseCalls[0].document).toBe('<rsm:CrossIndustryInvoice/>')
-    expect(parseCalls[0].options).toEqual({ format: 'cii' })
+    expect(parseCalls[0].options).toEqual({ format: 'cii', signal: expect.any(AbortSignal) })
 
     const sc = res.structuredContent as Record<string, unknown>
     expect(sc.format).toBe('cii')
@@ -897,6 +897,50 @@ describe('the generate and convert field maps', () => {
     for (const key of [...placed(GENERATE_RESULT_FIELDS), ...placed(GENERATE_META_FIELDS)]) {
       expect(genSc[key], key).toBeDefined()
     }
+    await c.close()
+  })
+})
+
+/** A client whose every call hands over the signal it got, then waits for that signal to abort. */
+function hangingClient(): { client: BeliqClient; received: Promise<AbortSignal | undefined> } {
+  let deliver: (signal: AbortSignal | undefined) => void = () => {}
+  const received = new Promise<AbortSignal | undefined>((resolve) => (deliver = resolve))
+  const hang = async (signal: AbortSignal | undefined): Promise<never> => {
+    deliver(signal)
+    if (!signal) throw new Error('the call got no signal')
+    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+  }
+  const client: BeliqClient = {
+    livemode: false,
+    validate: (_document, options) => hang(options?.signal),
+    parse: (_document, options) => hang(options?.signal),
+    generate: (_input, options) => hang(options?.signal),
+    convert: (_document, options) => hang(options.signal),
+    me: (options) => hang(options?.signal),
+  }
+  return { client, received }
+}
+
+describe('a tool call the host cancels', () => {
+  it.each([
+    ['beliq_validate_einvoice', { document: '<x/>' }],
+    ['beliq_parse_einvoice', { document: '<x/>' }],
+    ['beliq_generate_einvoice', { standard: 'xrechnung', invoice: MINIMAL_INVOICE }],
+    ['beliq_convert_einvoice', { document: '<x/>', targetFormat: 'ubl' }],
+    ['beliq_check_account', {}],
+  ])('%s aborts the SDK call', async (name, args) => {
+    const { client, received } = hangingClient()
+    const c = await connect(client)
+    const host = new AbortController()
+    const call = c.callTool({ name, arguments: args }, undefined, { signal: host.signal }).then(
+      () => 'answered',
+      () => 'cancelled'
+    )
+    const signal = await received
+    expect(signal?.aborted).toBe(false)
+    host.abort('the host gave up')
+    expect(await call).toBe('cancelled')
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true))
     await c.close()
   })
 })

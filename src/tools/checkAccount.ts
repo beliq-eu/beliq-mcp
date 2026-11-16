@@ -20,6 +20,6 @@ export function registerCheckAccount(server: McpServer, deps: ServerDeps): void 
         openWorldHint: true,
       },
     },
-    async () => runCheckAccount(deps)
+    async (_args, extra) => runCheckAccount(deps, extra.signal)
   )
 }

@@ -5,7 +5,7 @@
 import { createRequire } from 'node:module'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { Beliq } from '@beliq/sdk'
+import { createClient } from './client.js'
 import { loadConfig } from './config.js'
 import { registerAllTools } from './tools/register.js'
 
@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  const client = new Beliq({ apiKey: config.apiKey, baseUrl: config.baseUrl, auth: config.auth })
+  const client = createClient(config)
   const server = new McpServer({ name: 'beliq-mcp', version })
   registerAllTools(server, { client })
 

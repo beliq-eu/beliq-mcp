@@ -26,6 +26,6 @@ export function registerParse(server: McpServer, deps: ServerDeps): void {
         openWorldHint: true,
       },
     },
-    async (args) => runParse(args as ParseInput, deps)
+    async (args, extra) => runParse(args as ParseInput, deps, extra.signal)
   )
 }
