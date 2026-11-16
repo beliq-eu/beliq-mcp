@@ -10,7 +10,7 @@ const description = [
   'valid means the document passed the rule packs and schemas beliq runs for its format, in the versions the result names. It does not mean every recipient, validation tool or tax authority accepts it.',
   'Report the check depth beside the verdict, in the words of verificationBadgeLabel. When that field is absent, say the check depth was not stated and name none.',
   'When the result carries franceCtcBlockingRuleIds, lead with them: the API reports those French CTC rule ids as ending a transmission through a French platform, also where valid is true.',
-  'beliq validates the document; transmission (Peppol, plateforme agréée, KSeF, SDI), archiving, and tax-authority reporting stay with your access point.',
+  'beliq validates the document and does not send it: delivery through beliq is in development. Until it is available, transmission (Peppol, plateforme agréée, SDI) and tax-authority reporting stay with your access point; archiving stays with you, and beliq does not operate KSeF submission.',
 ].join(' ')
 
 export function registerValidate(server: McpServer, deps: ServerDeps): void {
