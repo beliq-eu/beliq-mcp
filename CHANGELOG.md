@@ -5,6 +5,33 @@ breaking change; the rest of its changes are in the git history between the
 version tags (https://github.com/beliq-eu/beliq-mcp/tags). 0.1.0 is on npm
 without a tag. Dates are the npm publish date, in UTC.
 
+## 0.5.0 - 2026-11-16
+
+- Breaking: `beliq_convert_einvoice` returns each `lostElements` entry as an
+  object with `path`, `value`, `reason`, `severity` and `acceptableLoss`.
+  Before, each entry was the string `[object Object]`. When the list would
+  pass the API's 6 KB header cap, it holds one `{ "truncated": true }` entry
+  with a `reason` instead, and `lostElementsCount` stays the exact count.
+- An outage is retried for up to 40 seconds: no retry starts after that, and
+  the call then returns beliq's error. Before, it was retried 3 times.
+- When the MCP client cancels a tool call, the call to beliq ends at once,
+  also during a wait between retries.
+- The `beliq_validate_einvoice` result has `rulesetSupersededOn`: the date
+  the authority made the successor of a selected ruleset mandatory. A
+  `RULESET_SUPERSEDED` warning names each such ruleset.
+- `beliq_validate_einvoice`'s `format` also accepts `fatturapa`, `facturae`,
+  `eslog` and `poland_ksef_fa3`.
+- `beliq_generate_einvoice` and `beliq_convert_einvoice` refuse an
+  `outputPath` that already exists, or whose directory is missing or not
+  writable, before they call the API, so such a path no longer uses up a
+  document.
+- `beliq_check_account` and `beliq_validate_einvoice` return `livemode`.
+  The text of `beliq_check_account` says whether the quota is the plan quota
+  or a test key's sandbox allowance, and the generate and convert summaries
+  say when a test key made the document.
+- The tool descriptions say that delivery through beliq is in development,
+  and that beliq does not operate KSeF submission.
+
 ## 0.4.1 - 2026-10-24
 
 - The description and the text summary of `beliq_convert_einvoice` say which
