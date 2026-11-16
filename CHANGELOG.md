@@ -31,6 +31,9 @@ without a tag. Dates are the npm publish date, in UTC.
   say when a test key made the document.
 - The tool descriptions say that delivery through beliq is in development,
   and that beliq does not operate KSeF submission.
+- package.json declares `mcpName` `io.github.beliq-eu/beliq-mcp`, and the
+  release workflow lists each version under that name in the official MCP
+  Registry (https://registry.modelcontextprotocol.io).
 
 ## 0.4.1 - 2026-10-24
 

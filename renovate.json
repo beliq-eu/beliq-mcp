@@ -36,6 +36,14 @@
       ],
       "matchCurrentVersion": "<1.0.0",
       "automerge": false
+    },
+    {
+      "description": "mcp-publisher, which release.yml's registry job downloads. Its tags carry a `v` the workflow adds itself, so the version is read without it. No automerge: the same commit has to move MCP_PUBLISHER_SHA256 to the new release's checksums file, which Renovate cannot do, and the release job refuses a download whose hash does not match.",
+      "matchDepNames": [
+        "modelcontextprotocol/registry"
+      ],
+      "extractVersion": "^v(?<version>\\d+\\.\\d+\\.\\d+)$",
+      "automerge": false
     }
   ]
 }

@@ -27,12 +27,14 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write # required for npm Trusted Publishing (OIDC)
 
 jobs:
   publish:
     runs-on: ubuntu-latest # Trusted Publishing requires a cloud-hosted runner
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # required for npm Trusted Publishing (OIDC)
     # The half an edit to this file cannot remove. GitHub refuses to start the
     # job unless the ref matches this environment's `v*.*.*` tag policy, and
     # npm only accepts a Trusted Publishing token from a run in it.
@@ -88,14 +90,87 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: package.json version matches the tag
+      # server.json names the npm version the registry job lists, so it has to
+      # match before npm holds a version that cannot be listed.
+      - name: package.json and server.json versions match the tag
         run: |
           want="${GITHUB_REF_NAME#v}"
-          have="$(node -p "require('./package.json').version")"
-          test "$want" = "$have" || {
-            echo "tag says $want, package.json says $have"
-            exit 1
-          }
+          for field in "package.json .version" "server.json .version" "server.json .packages[0].version"; do
+            have="$(jq -r "${field#* }" "${field%% *}")"
+            test "$want" = "$have" || {
+              echo "tag says $want, $field says $have"
+              exit 1
+            }
+          done
 
       - name: Publish to npm
         run: npm publish
+
+  # Lists the version just published in the MCP Registry, under the name in
+  # server.json, which the registry checks against `mcpName` in the npm
+  # package. A job of its own, so a failed listing re-runs alone: a re-run of
+  # `publish` fails on the version npm already holds.
+  registry:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The same tag policy as `publish`, so only a release tag can mint the
+    # OIDC token that publishes under io.github.beliq-eu.
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # mcp-publisher login github-oidc
+    env:
+      # renovate: datasource=github-releases depName=modelcontextprotocol/registry
+      MCP_PUBLISHER_VERSION: 1.8.9
+      # The mcp-publisher_linux_amd64.tar.gz line of registry_<version>_checksums.txt
+      # in that release. It moves with the version, in the same commit.
+      MCP_PUBLISHER_SHA256: 4d527ca8f1ced0394c962dc925c2a4a4addef441cbefd62501c875e9481823a8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Is this version listed already
+        id: listed
+        run: |
+          name="$(jq -r .name server.json)"
+          version="${GITHUB_REF_NAME#v}"
+          url="https://registry.modelcontextprotocol.io/v0/servers/$(jq -rn --arg s "$name" '$s|@uri')/versions/$version"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --max-time 30 "$url")"
+          case "$code" in
+            200) echo "listed=true" >> "$GITHUB_OUTPUT"; echo "$name $version is listed already" ;;
+            404) echo "listed=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::the registry answered $code for $url"; exit 1 ;;
+          esac
+
+      - name: Download mcp-publisher
+        if: steps.listed.outputs.listed == 'false'
+        run: |
+          archive=mcp-publisher_linux_amd64.tar.gz
+          curl -fsSL --retry 3 --max-time 120 -o "$archive" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/$archive"
+          echo "${MCP_PUBLISHER_SHA256}  $archive" | sha256sum -c -
+          tar xzf "$archive" mcp-publisher
+          rm "$archive"
+
+      # npm can take minutes to serve a new version, and the registry answers
+      # that publish with a 404 and "wait and retry". Only that answer is
+      # retried; a failed login fails the step. Each try logs in again, so a
+      # registry token never outlives a wait.
+      - name: Publish to the MCP Registry
+        if: steps.listed.outputs.listed == 'false'
+        run: |
+          deadline=$((SECONDS + 600))
+          while true; do
+            ./mcp-publisher login github-oidc
+            if out="$(./mcp-publisher publish 2>&1)"; then
+              echo "$out"
+              break
+            fi
+            echo "$out"
+            if ! grep -qE 'status: 404|retry later' <<<"$out" || [ "$SECONDS" -ge "$deadline" ]; then
+              exit 1
+            fi
+            sleep 30
+          done

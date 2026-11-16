@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.beliq-eu/beliq-mcp",
+  "title": "beliq",
+  "description": "Validate, parse, generate and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS).",
+  "repository": {
+    "url": "https://github.com/beliq-eu/beliq-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://docs.beliq.eu/integrations/mcp/",
+  "version": "0.5.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "beliq-mcp",
+      "version": "0.5.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "BELIQ_API_KEY",
+          "description": "API key from the beliq dashboard (API Keys).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "BELIQ_AUTH",
+          "description": "How the key is sent: header (X-API-Key) or bearer (Authorization: Bearer).",
+          "default": "header",
+          "choices": ["header", "bearer"]
+        }
+      ]
+    }
+  ]
+}
