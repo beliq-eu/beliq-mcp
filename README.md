@@ -20,6 +20,8 @@ Requires Node.js >= 20.15. Published to npm, so clients can run it with `npx`:
 npx -y beliq-mcp
 ```
 
+It is listed in the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.beliq-eu/beliq-mcp) as `io.github.beliq-eu/beliq-mcp`, which points clients at this npm package.
+
 The server is configured entirely through environment variables (see below).
 
 ## Configuration
@@ -28,7 +30,7 @@ The server is configured entirely through environment variables (see below).
 |---|---|---|---|
 | `BELIQ_API_KEY` | yes | - | API key from the beliq dashboard (API Keys). |
 | `BELIQ_AUTH` | no | `header` | How the key is sent: `header` (X-API-Key) or `bearer` (Authorization: Bearer). |
-| `BELIQ_BASE_URL` | no | `https://api.beliq.eu` | Override for a self-hosted deployment; defaults to the production API. |
+| `BELIQ_BASE_URL` | no | `https://api.beliq.eu` | The base URL the server sends its API requests to. |
 
 ## Client setup
 
