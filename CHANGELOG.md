@@ -12,8 +12,16 @@ without a tag. Dates are the npm publish date, in UTC.
   Before, each entry was the string `[object Object]`. When the list would
   pass the API's 6 KB header cap, it holds one `{ "truncated": true }` entry
   with a `reason` instead, and `lostElementsCount` stays the exact count.
-- An outage is retried for up to 40 seconds: no retry starts after that, and
-  the call then returns beliq's error. Before, it was retried 3 times.
+- An outage is retried for up to 10 seconds, and each attempt gets up to 45
+  seconds, so a tool call ends within 55 seconds, inside the 60-second
+  request limit of the MCP TypeScript SDK's client. Before, it was retried 3
+  times. When beliq asks for a longer wait, or the API cannot be reached, the
+  tool error says beliq is unavailable for now and, when beliq sent a
+  `Retry-After`, in how many seconds to try the same call again. Any other
+  API error with a `Retry-After`, such as a 429 rate limit, names that wait
+  too.
+- `beliq_check_account` reports an API it cannot reach as a failed check.
+  Before, the call failed with a protocol error.
 - When the MCP client cancels a tool call, the call to beliq ends at once,
   also during a wait between retries.
 - The `beliq_validate_einvoice` result has `rulesetSupersededOn`: the date

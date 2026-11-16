@@ -113,6 +113,12 @@ A successful convert means the API validated the converted XML before returning 
 
 A PDF (Factur-X / ZUGFeRD) must be passed by `documentPath` for validate, parse, and convert, not inlined as text.
 
+## Outages and repeated calls
+
+A tool call retries a short failure of the beliq API for up to 10 seconds, and gives each attempt up to 45 seconds, so a call ends within 55 seconds: under the 60-second request limit that the MCP TypeScript SDK's client sets by default. When beliq asks for a longer wait, as it does with `Retry-After: 30` during a database outage, the call does not wait. It returns a tool error that says beliq is unavailable for now and, when beliq sent a `Retry-After`, in how many seconds to try the same call again. Any other API error that carries a `Retry-After`, such as a 429 rate limit, names that wait too. When the MCP client cancels a call, the call stops at once, also in the middle of a wait between two attempts.
+
+beliq does not charge a repeat of a charged validate, parse, generate or convert request within 15 minutes of the charge, up to 10 repeats; when it cannot read or write its record of charged requests, it charges every attempt. The 15 minutes and the 10 repeats are beliq's own choice; no standard sets them. [Repeated requests are not charged again](https://docs.beliq.eu/api-reference/errors/#repeated-requests-are-not-charged-again) says what makes two requests the same. The generate and convert tools stay marked as not idempotent, since a repeat after that window is charged again.
+
 ## Agent skill
 
 [`skill/SKILL.md`](./skill/SKILL.md) is a portable agent skill that teaches a model when to validate, how to read `errors`/`warnings`, and how to report a verdict with its check depth, using the tools above. Drop it into a skills directory for an agent that should validate invoices on request.
