@@ -12,11 +12,11 @@ import { RETRY_BUDGET_MS, TIMEOUT_MS } from '../src/client.js'
 import { registerAllTools } from '../src/tools/register.js'
 
 // A tool call against a real SDK client and a real HTTP server on 127.0.0.1,
-// with the server's `Retry-After: 30`, an MCP client's 60-second request limit
+// with the server's `Retry-After: 15`, an MCP client's 60-second request limit
 // and this server's retry budget and attempt deadline all scaled by SCALE.
 // The SDK's own backoff waits are not scaled.
 const SCALE = 1 / 5
-const RETRY_AFTER_S = 30 * SCALE
+const RETRY_AFTER_S = 15 * SCALE
 const HOST_LIMIT_MS = 60_000 * SCALE
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -185,11 +185,11 @@ describe('a tool call during an outage ends inside the MCP host limit', () => {
     await withApi(
       (_req, res) => {
         requests++
-        res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '30' })
+        res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '15' })
         res.end(JSON.stringify({ success: false, error: { code: 'DATABASE_UNAVAILABLE', message: 'database unavailable' } }))
       },
       async (baseUrl) => {
-        // A budget long enough that the SDK waits out the 30-second Retry-After.
+        // A budget long enough that the SDK waits out the 15-second Retry-After.
         const client = new SettleRecordingBeliq({ apiKey: 'blq_test_outage', baseUrl, retryBudgetMs: 120_000 })
         const server = new McpServer({ name: 'beliq-mcp', version: 'test' })
         registerAllTools(server, { client })
