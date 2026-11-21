@@ -24,6 +24,8 @@ It is listed in the [official MCP Registry](https://registry.modelcontextprotoco
 
 The server is configured entirely through environment variables (see below).
 
+An AI agent that installs the server for a user (Cline, for example) follows [llms-install.md](llms-install.md). It keeps the API key out of the chat and out of shell commands.
+
 ## Configuration
 
 | Variable | Required | Default | Description |
