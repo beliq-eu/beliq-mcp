@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.beliq-eu/beliq-mcp",
   "title": "beliq",
-  "description": "Validate, parse, generate and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS).",
+  "description": "Generate, validate, deliver (in development) EU e-invoices: XRechnung, ZUGFeRD, Factur-X, Peppol BIS",
   "repository": {
     "url": "https://github.com/beliq-eu/beliq-mcp",
     "source": "github"

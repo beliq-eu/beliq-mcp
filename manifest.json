@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.3.schema.json",
+  "manifest_version": "0.3",
+  "name": "beliq-mcp",
+  "display_name": "beliq",
+  "version": "0.5.0",
+  "description": "Generate, validate, deliver (in development) EU e-invoices: XRechnung, ZUGFeRD, Factur-X, Peppol BIS",
+  "long_description": "beliq covers three steps of an e-invoice: generate, validate, and deliver. Delivery through beliq is in development; until then you send through the access point or portal you already use. This server lets an MCP client validate, parse, generate and convert e-invoices through the beliq API; no tool sends or files an invoice. It needs a beliq API key.",
+  "author": {
+    "name": "beliq",
+    "url": "https://beliq.eu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beliq-eu/beliq-mcp"
+  },
+  "homepage": "https://beliq.eu",
+  "documentation": "https://docs.beliq.eu/integrations/mcp/",
+  "support": "https://github.com/beliq-eu/beliq-mcp/issues",
+  "license": "MIT",
+  "keywords": ["e-invoicing", "xrechnung", "zugferd", "factur-x", "peppol", "en16931"],
+  "privacy_policies": ["https://beliq.eu/legal/privacy-policy/"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "BELIQ_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "beliq API key",
+      "description": "API key from the beliq dashboard (API Keys).",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "runtimes": {
+      "node": ">=20.15"
+    }
+  }
+}

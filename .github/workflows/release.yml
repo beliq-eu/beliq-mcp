@@ -91,11 +91,12 @@ jobs:
         run: npm test
 
       # server.json names the npm version the registry job lists, so it has to
-      # match before npm holds a version that cannot be listed.
+      # match before npm holds a version that cannot be listed. manifest.json
+      # names the version of the bundle the bundle job attaches.
       - name: package.json and server.json versions match the tag
         run: |
           want="${GITHUB_REF_NAME#v}"
-          for field in "package.json .version" "server.json .version" "server.json .packages[0].version"; do
+          for field in "package.json .version" "server.json .version" "server.json .packages[0].version" "manifest.json .version"; do
             have="$(jq -r "${field#* }" "${field%% *}")"
             test "$want" = "$have" || {
               echo "tag says $want, $field says $have"
@@ -174,3 +175,52 @@ jobs:
             fi
             sleep 30
           done
+
+  # Packs the MCPB bundle for Claude Desktop and other MCPB clients, and
+  # attaches it to the tag's GitHub Release. After `publish`, so a bundle only
+  # exists for a version npm holds, and its version check has passed.
+  bundle:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the GitHub Release and upload the bundle
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          # No dependency cache in a publishing job: a poisoned cache would ship.
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack and start the bundle
+        run: |
+          file="beliq-mcp-${GITHUB_REF_NAME#v}.mcpb"
+          scripts/pack-mcpb.sh "$file"
+          dir="$(mktemp -d)"
+          unzip -q "$file" -d "$dir"
+          node scripts/smoke-mcpb.mjs "$dir"
+
+      # A re-run finds the release it created and replaces the bundle on it.
+      - name: Attach the bundle to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          file="beliq-mcp-${GITHUB_REF_NAME#v}.mcpb"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$file" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$file" --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Changes: CHANGELOG.md. $file is the MCPB bundle for Claude Desktop and other MCPB clients."
+          fi

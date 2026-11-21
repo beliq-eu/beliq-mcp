@@ -33,6 +33,14 @@ jobs:
             echo "::error::CHANGELOG.md has no '## $v - <date>' heading"
             exit 1
           }
+      # The release job attaches this bundle to the tag's GitHub Release.
+      - name: The MCPB bundle packs and starts
+        run: |
+          dir="$(mktemp -d)"
+          scripts/pack-mcpb.sh "$dir/beliq-mcp.mcpb"
+          mkdir "$dir/unpacked"
+          unzip -q "$dir/beliq-mcp.mcpb" -d "$dir/unpacked"
+          node scripts/smoke-mcpb.mjs "$dir/unpacked"
 
   # test:integration drives the real MCP run functions against the live beliq API, spending 4 documents (validate + generate + convert + parse).
   # BELIQ_API_KEY is a `blq_test_` sandbox key: it runs the full rule stack but
