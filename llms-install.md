@@ -6,9 +6,11 @@ These steps are for an AI agent (Cline, or any other MCP client) that sets the s
 
 The server needs Node.js 20.15 or later. Run `node --version`. If it is older or missing, ask the user to install a current Node.js first.
 
-## 2. Add the server to the MCP settings file
+## 2. Add the server to your own MCP settings file
 
-Add this entry under `mcpServers` in the client's MCP settings file, with the placeholder exactly as written:
+The server runs from npm through `npx`. Do not clone, install or build this repo, even when a clone is in the user's workspace.
+
+Add this entry under `mcpServers` in the MCP settings file of the client you are running in, with the placeholder exactly as written. For Cline that is `cline_mcp_settings.json`, the file Cline's own instructions name. Config files of other tools in the user's workspace, such as `.claude/settings.json` or `.cursor/mcp.json`, are not yours to change.
 
 ```json
 "beliq": {
