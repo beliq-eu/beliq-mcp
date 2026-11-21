@@ -5,6 +5,15 @@ breaking change; the rest of its changes are in the git history between the
 version tags (https://github.com/beliq-eu/beliq-mcp/tags). 0.1.0 is on npm
 without a tag. Dates are the npm publish date, in UTC.
 
+## 0.5.1 - 2026-11-21
+
+- The npm and MCP Registry descriptions say that delivery through beliq is in
+  development, and that the server validates, parses, generates and converts
+  e-invoices. No tool in this server sends an invoice.
+- Each release attaches `beliq-mcp-<version>.mcpb`, an MCPB bundle that
+  installs the server in Claude Desktop and other MCPB clients. It asks for
+  the API key and for how the key is sent.
+
 ## 0.5.0 - 2026-11-16
 
 - Breaking: `beliq_convert_einvoice` returns each `lostElements` entry as an
