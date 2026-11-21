@@ -15,6 +15,8 @@ const manifest = read('manifest.json')
 interface ServerEnvVar {
   name: string
   isRequired?: boolean
+  isSecret?: boolean
+  default?: string
 }
 
 describe('manifest.json', () => {
@@ -32,14 +34,17 @@ describe('manifest.json', () => {
     expect(manifest.description).toBe(server.description)
   })
 
-  it('asks the user for every variable the registry marks required, and sets no other', () => {
+  it('sets each variable the registry lists from a user setting with the same terms', () => {
     const vars: ServerEnvVar[] = server.packages[0].environmentVariables
-    const required = vars.filter((v) => v.isRequired).map((v) => v.name)
     const env: Record<string, string> = manifest.server.mcp_config.env
-    expect(Object.keys(env).sort()).toEqual(required.sort())
-    for (const value of Object.values(env)) {
-      const key = /^\$\{user_config\.(\w+)\}$/.exec(value)?.[1]
-      expect(key && manifest.user_config[key]).toMatchObject({ required: true, sensitive: true })
+    expect(Object.keys(env).sort()).toEqual(vars.map((v) => v.name).sort())
+    for (const v of vars) {
+      const key = /^\$\{user_config\.(\w+)\}$/.exec(env[v.name])?.[1]
+      const setting = key ? manifest.user_config[key] : undefined
+      expect(setting, v.name).toBeDefined()
+      expect(setting.required ?? false, v.name).toBe(v.isRequired ?? false)
+      expect(setting.sensitive ?? false, v.name).toBe(v.isSecret ?? false)
+      expect(setting.default, v.name).toBe(v.default)
     }
   })
 })

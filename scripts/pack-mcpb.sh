@@ -3,7 +3,8 @@
 # dependencies) into the file given as $1. Run `npm run build` first.
 set -euo pipefail
 
-out="$(realpath -m "${1:?usage: scripts/pack-mcpb.sh <out.mcpb>}")"
+arg="${1:?usage: scripts/pack-mcpb.sh <out.mcpb>}"
+out="$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT

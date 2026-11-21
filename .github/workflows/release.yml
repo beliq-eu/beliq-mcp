@@ -211,14 +211,18 @@ jobs:
           node scripts/smoke-mcpb.mjs "$dir"
 
       # A re-run finds the release it created and replaces the bundle on it.
+      # Any answer but "release not found" fails the step with gh's message.
       - name: Attach the bundle to the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           file="beliq-mcp-${GITHUB_REF_NAME#v}.mcpb"
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+          if out="$(gh release view "$GITHUB_REF_NAME" --json tagName 2>&1)"; then
             gh release upload "$GITHUB_REF_NAME" "$file" --clobber
+          elif ! grep -q 'release not found' <<<"$out"; then
+            echo "$out"
+            exit 1
           else
             gh release create "$GITHUB_REF_NAME" "$file" --verify-tag \
               --title "$GITHUB_REF_NAME" \
