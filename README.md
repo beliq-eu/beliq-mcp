@@ -42,7 +42,9 @@ claude mcp add beliq -e BELIQ_API_KEY=your-key -- npx -y beliq-mcp
 
 ### Claude Desktop
 
-Add to `claude_desktop_config.json` (Settings > Developer > Edit Config):
+Download `beliq-mcp-<version>.mcpb` from the latest release (https://github.com/beliq-eu/beliq-mcp/releases/latest) and open it with Claude Desktop, which installs it as an extension and asks for the API key.
+
+Or add to `claude_desktop_config.json` (Settings > Developer > Edit Config):
 
 ```json
 {
