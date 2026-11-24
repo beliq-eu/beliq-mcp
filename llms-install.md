@@ -4,7 +4,7 @@ These steps are for an AI agent (Cline, or any other MCP client) that sets the s
 
 ## 1. Check Node.js
 
-The server needs Node.js 20.15 or later. Run `node --version`. If it is older or missing, ask the user to install a current Node.js first.
+The server needs Node.js 22 or later. Run `node --version`. If it is older or missing, ask the user to install a current Node.js first.
 
 ## 2. Add the server to your own MCP settings file
 
