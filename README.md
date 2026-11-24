@@ -16,7 +16,7 @@ beliq covers three steps of an e-invoice: generate, validate, and deliver (in de
 
 ## Installation
 
-Requires Node.js >= 22. Published to npm, so clients can run it with `npx`:
+Requires Node.js >= 24. Published to npm, so clients can run it with `npx`:
 
 ```
 npx -y beliq-mcp
