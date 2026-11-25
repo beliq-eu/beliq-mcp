@@ -1,6 +1,6 @@
 ---
 name: beliq-validate-einvoice
-description: This skill should be used when the user wants to check whether an EU electronic invoice is valid: validating an XRechnung, ZUGFeRD, Factur-X, Peppol BIS, or other e-invoice against the rules beliq runs for its format, saying how deep that check went, and explaining what fails and why. Triggers on phrases like "validate this invoice", "is this XRechnung valid", "check this e-invoice", "why is my ZUGFeRD rejected", "what EN 16931 rules does this break", or any request to verify an invoice XML or a Factur-X/ZUGFeRD PDF against the rules. Requires the beliq MCP server and a beliq API key.
+description: 'This skill should be used when the user wants to check whether an EU electronic invoice is valid: validating an XRechnung, ZUGFeRD, Factur-X, Peppol BIS, or other e-invoice against the rules beliq runs for its format, saying how deep that check went, and explaining what fails and why. Triggers on phrases like "validate this invoice", "is this XRechnung valid", "check this e-invoice", "why is my ZUGFeRD rejected", "what EN 16931 rules does this break", or any request to verify an invoice XML or a Factur-X/ZUGFeRD PDF against the rules. Requires the beliq MCP server and a beliq API key.'
 version: 0.1.0
 ---
 
