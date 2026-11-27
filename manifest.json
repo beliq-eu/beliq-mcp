@@ -4,8 +4,8 @@
   "name": "beliq-mcp",
   "display_name": "beliq",
   "version": "0.5.1",
-  "description": "Validate, parse, generate, convert EU e-invoices via beliq; delivery through beliq is in development",
-  "long_description": "beliq covers three steps of an e-invoice: generate, validate, and deliver. Delivery through beliq is in development; until then you send through the access point or portal you already use. This server lets an MCP client validate, parse, generate and convert e-invoices through the beliq API; no tool sends or files an invoice. It needs a beliq API key.",
+  "description": "Generate, validate, parse, convert EU e-invoices via beliq; delivery through beliq is in development",
+  "long_description": "beliq does five things with an e-invoice: generate, validate, parse, convert and deliver (in development). Until delivery through beliq is available, you send through the access point or portal you already use. This server lets an MCP client run the first four through the beliq API; no tool sends or files an invoice. It needs a beliq API key.",
   "author": {
     "name": "beliq",
     "url": "https://beliq.eu"

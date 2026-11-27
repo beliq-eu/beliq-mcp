@@ -15,7 +15,7 @@ The user has an e-invoice (or a path to one) and wants to know if it is valid, o
 - Invoice **XML** (XRechnung, Peppol BIS, and the other formats beliq carries).
 - A **Factur-X / ZUGFeRD PDF** (a PDF with embedded invoice XML); pass it by file path. The verdict is then about the embedded XML: the PDF itself is not checked.
 
-This skill focuses on validation. To parse a document into a structured invoice, generate one, or convert between formats, the same beliq MCP server exposes `beliq_parse_einvoice`, `beliq_generate_einvoice`, and `beliq_convert_einvoice`.
+This skill focuses on validation. To generate a document, parse one into a structured invoice or convert between formats, the same beliq MCP server exposes `beliq_generate_einvoice`, `beliq_parse_einvoice` and `beliq_convert_einvoice`.
 
 ## Prerequisite: the MCP server
 
@@ -70,6 +70,6 @@ When reporting back:
 
 ## Scope and wording
 
-beliq covers three steps of an e-invoice: generate, validate, and deliver (in development). Until delivery through beliq is available, transmission (Peppol, plateforme agréée, SDI) and tax-authority reporting stay with the user's access point or service provider, and archiving stays with the user. beliq does not operate KSeF submission. Do not describe beliq as sending, filing, submitting, or transmitting an invoice today. If the user asks about delivery, say it is in development and give no date.
+beliq does five things with an e-invoice: generate, validate, parse, convert and deliver (in development). Until delivery through beliq is available, transmission (Peppol, plateforme agréée, SDI) and tax-authority reporting stay with the user's access point or service provider, and archiving stays with the user. beliq does not operate KSeF submission. Do not describe beliq as sending, filing, submitting, or transmitting an invoice today. If the user asks about delivery, say it is in development and give no date.
 
 Only describe the formats and countries beliq actually supports as live. Do not promise coverage for a format that the tool does not return a result for; if validation reports the format as `unknown`, say the document could not be recognized rather than guessing.
